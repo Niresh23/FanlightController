@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.niresh23.fanlightcontroller"
-    compileSdk = 33
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.niresh23.fanlightcontroller"
         minSdk = 26
-        targetSdk = 33
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -51,8 +51,11 @@ android {
 
 dependencies {
 
+    implementation("com.google.accompanist:accompanist-permissions:0.25.0")
+    implementation("com.karumi:dexter:6.2.3")
+
     implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation(platform("androidx.compose:compose-bom:2023.03.00"))
     implementation("androidx.compose.ui:ui")
@@ -66,4 +69,6 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.0")
+
 }

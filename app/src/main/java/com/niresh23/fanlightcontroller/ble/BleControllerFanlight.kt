@@ -111,10 +111,10 @@ class BleControllerFanlight: HandlerCode {
 
         while (iterator.hasNext()) {
             val scanResultModel = iterator.next()
-            if (str == DEVICENAME && paramBluetoothDevice.address == scanResultModel.getDevice()!!
+            if (str == DEVICENAME && paramBluetoothDevice.address == scanResultModel.device!!
                     .address
             ) {
-                scanResultModel.setRssi(paramInt)
+                scanResultModel.rssi = paramInt
                 bool1 = false
                 break
             }
@@ -122,8 +122,8 @@ class BleControllerFanlight: HandlerCode {
 
         if (bool1) {
             val scanResultModel = ScanResultModel()
-            scanResultModel.setDevice(paramBluetoothDevice)
-            scanResultModel.setRssi(paramInt)
+            scanResultModel.device = paramBluetoothDevice
+            scanResultModel.rssi = paramInt
             val stringBuilder1 = StringBuilder()
             stringBuilder1.append("------ DEVICENAME : ")
             stringBuilder1.append(str)
@@ -139,9 +139,9 @@ class BleControllerFanlight: HandlerCode {
         paramInt = -200
 
         for (scanResultModel in scanList!!) {
-            if (scanResultModel.getRssi() > paramInt) {
-                device = scanResultModel.getDevice()
-                paramInt = scanResultModel.getRssi()
+            if (scanResultModel.rssi > paramInt) {
+                device = scanResultModel.device
+                paramInt = scanResultModel.rssi
             }
         }
 
