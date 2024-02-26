@@ -11,13 +11,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -36,6 +39,7 @@ import com.karumi.dexter.MultiplePermissionsReport
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.multi.MultiplePermissionsListener
+import com.niresh23.fanlightcontroller.ui.ControlScreen
 import com.niresh23.fanlightcontroller.ui.scan.DeviceScreen
 import com.niresh23.fanlightcontroller.ui.theme.FanlightControllerTheme
 import com.niresh23.fanlightcontroller.viewmodel.DeviceScanViewModel
@@ -82,7 +86,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(topBar = {
                     TopAppBar(
                         title = {
-                            Text(text = "Bluetooth Chat App")
+                            Text(text = "Fanlight Controller")
                         }
                     )
                 }) {
@@ -97,13 +101,13 @@ class MainActivity : ComponentActivity() {
 
                         val deviceScanningState by deviceScanViewModel.viewState.observeAsState()
                         val deviceConnectionState by fanlightViewModel.connectionStateFlow.collectAsState()
+
                         when(deviceConnectionState) {
                             is DeviceConnectionState.Disconnected -> {
                                 DeviceScreen(
                                     state = deviceScanningState,
                                     onStartScan = { deviceScanViewModel.startScan() },
                                     onStopScan = { deviceScanViewModel.stopScanning() },
-                                    onStartServer = { },
                                     onDeviceClick = fun(device) {
                                         fanlightViewModel.connect(device)
                                     }
@@ -113,7 +117,7 @@ class MainActivity : ComponentActivity() {
                                 CircularProgressIndicator()
                             }
                             is DeviceConnectionState.Connected -> {
-                                Text(text = "Connected")
+                                ControlScreen(fanlightViewModel = fanlightViewModel)
                             }
                         }
                     }

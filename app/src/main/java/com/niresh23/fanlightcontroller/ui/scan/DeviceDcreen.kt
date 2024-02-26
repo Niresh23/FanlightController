@@ -27,7 +27,6 @@ fun DeviceScreen(
     state: DeviceScanViewState?,
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
-    onStartServer: () -> Unit,
     onDeviceClick: (BluetoothDevice) -> Unit
 ) {
     Column(
@@ -71,9 +70,6 @@ fun DeviceScreen(
             Button(onClick = onStopScan) {
                 Text(text = "Stop scan")
             }
-            Button(onClick = onStartServer) {
-                Text(text = "Start server")
-            }
         }
     }
 }
@@ -114,7 +110,6 @@ fun previewDeviceScreen() {
         state = null,
         onStartScan = { /*TODO*/ },
         onStopScan = { /*TODO*/ },
-        onStartServer = { /*TODO*/ },
         onDeviceClick = fun(device) {}
     )
 }
