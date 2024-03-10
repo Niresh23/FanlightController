@@ -1,44 +1,91 @@
 package com.niresh23.fanlightcontroller.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Color.HSVToColor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import com.karumi.dexter.Dexter
+import com.karumi.dexter.PermissionToken
+import com.karumi.dexter.listener.PermissionDeniedResponse
+import com.karumi.dexter.listener.PermissionGrantedResponse
+import com.karumi.dexter.listener.PermissionRequest
+import com.karumi.dexter.listener.single.PermissionListener
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
 
 @Composable
 fun ControlScreen(
     fanlightViewModel: FanlightViewModel
 ) {
-    val colorState = fanlightViewModel.colorFlowState.collectAsState()
     val colorButtonsList = generateColorPlate()
-
+    val context = LocalContext.current
+    val colorState = fanlightViewModel.colorFlowState.value
     Column {
         Text(text = "Connected")
+        ExoLightHead(modifier = Modifier.height(50.dp).width(50.dp), color = colorState.toComposeColor())
+        Row {
+            Button(onClick = {
+                Dexter.withContext(context).withPermission(
+                    Manifest.permission.RECORD_AUDIO
+                ).withListener(object : PermissionListener {
+                    override fun onPermissionGranted(var1: PermissionGrantedResponse?) {
+                        if (ActivityCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            return
+                        }
+                        fanlightViewModel.startVisualizer()
+                    }
+
+                    override fun onPermissionDenied(var1: PermissionDeniedResponse?) {
+
+                    }
+
+                    override fun onPermissionRationaleShouldBeShown(
+                        var1: PermissionRequest?,
+                        var2: PermissionToken?
+                    ) {
+
+                    }
+                }).check()
+            }) {
+                Text("Start Visualizer")
+            }
+            Button(onClick = {
+                fanlightViewModel.stopVisualizer()
+            }) {
+                Text("Stop Visualizer")
+            }
+            Button(onClick = { fanlightViewModel.testFunction(4995634) }) {
+                Text(text = "Test color")
+            }
+        }
+
         LazyVerticalGrid( columns = GridCells.Fixed(5)) {
             items(colorButtonsList) { color ->
                 Box(
                     modifier = Modifier
                         .background(color)
                         .clickable {
-                            val colorValue = color.value
-                            val result = (colorValue and 0x00FFFFFFFFFFFFFFUL shr 32).toString()
-                            fanlightViewModel.colorChangeMapping(result.toInt())
+                            fanlightViewModel.colorChangeMapping(color.toIntHexColor())
                         }
                         .height(50.dp)
                         .width(50.dp)

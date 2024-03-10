@@ -28,7 +28,7 @@ class DeviceScanViewModel(app: Application) : AndroidViewModel(app) {
 
     private val scanResults = mutableMapOf<String, BluetoothDevice>()
 
-    private val adapter: BluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+    private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
 
     private var scanner: BluetoothLeScanner? = null
 
@@ -46,13 +46,13 @@ class DeviceScanViewModel(app: Application) : AndroidViewModel(app) {
     fun startScan() {
         scanFilters = buildScanFilters()
         scanSettings = buildScanSettings()
-        if (!adapter.isMultipleAdvertisementSupported) {
+        if (adapter?.isMultipleAdvertisementSupported == false) {
             _viewState.value = DeviceScanViewState.AdvertisementNotSupported
             return
         }
 
         if (scanCallback == null) {
-            scanner = adapter.bluetoothLeScanner
+            scanner = adapter?.bluetoothLeScanner
             _viewState.value = DeviceScanViewState.ActiveScan
             Handler().postDelayed({ stopScanning() }, SCAN_PERIOD)
 

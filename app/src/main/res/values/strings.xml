@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Fanlight Controller</string>
+    <string name="location_permission_explanation">Location permission is required because with Bluetooth access alone an app can essentially locate a device already by checking nearby device addresses against a database of known locations.</string>
+    <string name="bluetooth_permission_explanation"></string>
 </resources>

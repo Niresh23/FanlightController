@@ -11,13 +11,24 @@ import android.bluetooth.BluetoothStatusCodes
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.annotation.RequiresPermission
+import androidx.compose.ui.graphics.Color
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.niresh23.fanlightcontroller.utils.Constants.MESSAGE_UUID
 import com.niresh23.fanlightcontroller.utils.Constants.SERVICE_UUID
 import com.niresh23.fanlightcontroller.viewstate.DeviceConnectionState
+import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.concatWith
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.launch
 import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.min
@@ -28,18 +39,18 @@ class FanlightViewModel(private val application: Application) : AndroidViewModel
     private val _connectionStateFlow = MutableStateFlow<DeviceConnectionState>(DeviceConnectionState.Disconnected)
     val connectionStateFlow = _connectionStateFlow.asStateFlow()
 
-    private val _colorFlowState = MutableStateFlow(16711680)
+    private val _colorFlowState = MutableStateFlow(0xFF0000)
     val colorFlowState = _colorFlowState
 
     private var gattClient: BluetoothGatt? = null
     private var gattClientCallback: GattClientCallback? = null
 
     private var gatt: BluetoothGatt? = null
-    private var colorIdx = 0
 
     private var messageCharacteristic: BluetoothGattCharacteristic? = null
     private var currentDevice: BluetoothDevice? = null
-    val sendQueue: Queue<ByteArray> = ConcurrentLinkedQueue()
+    private val sendQueue: Queue<ByteArray> = ConcurrentLinkedQueue()
+    private val audioVisualizer = AudioVisualizer()
 
     fun connect(device: BluetoothDevice) {
         _connectionStateFlow.value = DeviceConnectionState.Connecting
@@ -60,6 +71,24 @@ class FanlightViewModel(private val application: Application) : AndroidViewModel
             return
         }
         gattClient = device.connectGatt(application, false, gattClientCallback)
+
+        viewModelScope.launch {
+            _connectionStateFlow.collectLatest {
+
+                if (it is DeviceConnectionState.Connected) {
+                    launch {
+                        _colorFlowState.collectLatest { color ->
+                            colorChangeMapping(color)
+                        }
+                    }
+                    launch {
+                        audioVisualizer.colorSharedFlow.collectLatest { color ->
+                            colorChangeMapping(color)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
@@ -105,6 +134,25 @@ class FanlightViewModel(private val application: Application) : AndroidViewModel
         reQuest()
     }
 
+
+    fun testFunction(color: Int) {
+        val resultArray = ByteArray(200)
+
+        for (i in 0 ..9) {
+            val colorX = color * i
+            val arrayOfByte = ByteArray(20)
+            arrayOfByte[0] = i.toByte()
+            arrayOfByte[1] = 15
+            arrayOfByte[2] = 0
+            arrayOfByte[3] = (0xFF0000 and colorX shr 16).toByte()
+            arrayOfByte[4] = (0xFF00 and colorX shr 8).toByte()
+            arrayOfByte[5] = (colorX and 0xFF).toByte()
+            arrayOfByte.copyInto(resultArray, arrayOfByte.size * i)
+        }
+
+        this.writeDataStrobe(resultArray)
+    }
+
     fun colorChangeMapping(color: Int) {
         val arrayOfByte = ByteArray(20)
         arrayOfByte[0] = 1
@@ -113,43 +161,13 @@ class FanlightViewModel(private val application: Application) : AndroidViewModel
         arrayOfByte[3] = (0xFF0000 and color shr 16).toByte()
         arrayOfByte[4] = (0xFF00 and color shr 8).toByte()
         arrayOfByte[5] = (color and 0xFF).toByte()
-        arrayOfByte[6] = 0
-        arrayOfByte[7] = 0
+
         this.writeDataStrobe(arrayOfByte)
     }
 
-//    fun colorChangeMapping() {
-//        try {
-//            var i = this.colorIdx
-//            if (i == 0) {
-//                i = 16721408
-//            } else if(i == 1) {
-//                val c = '豈'
-//                i = c.code
-//            } else if(i == 2) {
-//                i = 275455
-//            }
-//            val arrayOfByte = ByteArray(20)
-//            arrayOfByte[0] = 1
-//            arrayOfByte[1] = 15
-//            arrayOfByte[2] = 0
-//            arrayOfByte[3] = (0xFF0000 and i shr 16).toByte()
-//            arrayOfByte[4] = (0xFF00 and i shr 8).toByte()
-//            arrayOfByte[5] = (i and 0xFF).toByte()
-//            arrayOfByte[6] = 0
-//            arrayOfByte[7] = 0
-//            this.writeDataStrobe(arrayOfByte)
-//            i = this.colorIdx + 1
-//            this.colorIdx = i
-//            if (i == 4) this.colorIdx = 0
-//            Handler().postDelayed({ colorChangeMapping() }, 500L)
-//        } catch (e: Exception) {
-//
-//        }
-//    }
 
 
-    fun writeDataStrobe(paramArrayOfByte: ByteArray) {
+    private fun writeDataStrobe(paramArrayOfByte: ByteArray) {
         var i = 0
         while (i < paramArrayOfByte.size) {
             val j = i + 20
@@ -199,6 +217,20 @@ class FanlightViewModel(private val application: Application) : AndroidViewModel
         }
     }
 
+    @RequiresPermission(value = Manifest.permission.RECORD_AUDIO)
+    fun startVisualizer() {
+        audioVisualizer.init(0)
+    }
+
+    fun stopVisualizer() {
+        audioVisualizer.release()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        audioVisualizer.release()
+    }
+
     private inner class GattClientCallback : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
@@ -240,6 +272,4 @@ class FanlightViewModel(private val application: Application) : AndroidViewModel
             }
         }
     }
-
-    private val seatData = IntArray(54)
 }
