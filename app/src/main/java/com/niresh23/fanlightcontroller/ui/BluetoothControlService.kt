@@ -22,6 +22,7 @@ import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.utils.SettingKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,7 +76,6 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
 
     override fun onDestroy() {
         super.onDestroy()
-        job.cancel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

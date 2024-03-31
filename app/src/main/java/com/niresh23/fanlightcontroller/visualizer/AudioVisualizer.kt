@@ -5,6 +5,7 @@ import android.media.audiofx.Visualizer
 import androidx.annotation.RequiresPermission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -30,7 +31,7 @@ class AudioVisualizer {
             fft ?: return
 
             val color = convertFFTtoColor(fft)
-            CoroutineScope(Dispatchers.Main).launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 _colorSharedFlow.emit(color)
             }
         }
@@ -49,11 +50,9 @@ class AudioVisualizer {
         captureRate = (Visualizer.getMaxCaptureRate() / divider).toInt()
         visualizer?.setDataCaptureListener(onDataCaptureListener, captureRate, false, true)
         visualizer?.enabled = true
-
     }
 
     fun release() {
-        visualizer?.enabled = false
         visualizer?.release()
     }
 

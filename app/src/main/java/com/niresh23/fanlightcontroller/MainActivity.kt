@@ -73,6 +73,13 @@ class MainActivity : ComponentActivity() {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
                     launch { fanlightViewModel.actionFlow.collectLatest { action ->
                         when(action) {
+                            is StickActions.Disconnect -> {
+                                Intent(this@MainActivity, BluetoothControlService::class.java).also {
+                                    it.action = BluetoothControlService.Actions.Disconnect.toString()
+                                    this@MainActivity.startService(it)
+                                }
+                            }
+
                             is StickActions.ChangeColor -> {
                                 Intent(this@MainActivity, BluetoothControlService::class.java).also {
                                     it.putExtra(BluetoothControlService.COLOR_KEY, action.color)
@@ -186,7 +193,7 @@ class MainActivity : ComponentActivity() {
 
 
                 when(deviceConnectionState) {
-                    is DeviceConnectionState.Disconnected -> {
+                    DeviceConnectionState.Disconnected -> {
                         DeviceScreen(
                             state = deviceScanningState,
                             onStartScan = {
@@ -205,12 +212,12 @@ class MainActivity : ComponentActivity() {
                                     it.putExtra(BluetoothControlService.BLUETOOTH_DEVICE_KEY, device)
                                     it.action = BluetoothControlService.Actions.Connect.toString()
                                     this@MainActivity.startService(it)
-                                    this@MainActivity.bindService(it, connection, Context.BIND_AUTO_CREATE)
+                                    this@MainActivity.bindService(it, connection, BIND_AUTO_CREATE)
                                 }
                             }
                         )
                     }
-                    is DeviceConnectionState.Connecting -> {
+                    DeviceConnectionState.Connecting -> {
                         Intent()
                         Scaffold {
                             it.calculateTopPadding()
@@ -222,7 +229,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
-                    is DeviceConnectionState.Connected -> {
+                    DeviceConnectionState.Connected -> {
                         HomeScreen(viewModel = fanlightViewModel)
                     }
                 }

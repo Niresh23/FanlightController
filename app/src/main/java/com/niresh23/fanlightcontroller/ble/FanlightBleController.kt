@@ -54,7 +54,6 @@ class FanlightBleController(private val context: Context, private val deviceCall
     fun disconnect() {
         audioVisualizer.release()
         gattClient?.disconnect()
-        scope.cancel()
     }
 
     @RequiresPermission(value = Manifest.permission.RECORD_AUDIO)

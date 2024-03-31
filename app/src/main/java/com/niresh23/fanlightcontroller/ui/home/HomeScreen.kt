@@ -51,7 +51,7 @@ fun HomeScreen(viewModel: FanlightViewModel) {
                             .fillMaxWidth()
                             .weight(1f))
                         Button(onClick = {
-                            viewModel.disconnected()
+                            viewModel.disconnect()
                         }) {
                             Text(text = stringResource(id = R.string.disconnect_lbl))
                         }
