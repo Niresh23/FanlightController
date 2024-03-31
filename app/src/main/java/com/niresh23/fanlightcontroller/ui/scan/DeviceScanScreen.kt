@@ -27,10 +27,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.viewstate.DeviceScanViewState
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,8 +62,8 @@ fun DeviceScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(16.dp)
             ) {
-
                 if (loading) {
                     LinearProgressIndicator (
                         modifier = Modifier.fillMaxWidth(),
@@ -70,7 +71,7 @@ fun DeviceScreen(
                         trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     )
                 }
-
+                Text(text = stringResource(id = R.string.scan_description_message))
                 when(state) {
                     is DeviceScanViewState.ActiveScan -> {
                         loading = true
@@ -94,17 +95,22 @@ fun DeviceScreen(
                     }
                 }
 
-                Spacer(Modifier.fillMaxHeight().weight(1f))
+                Spacer(
+                    Modifier
+                        .fillMaxHeight()
+                        .weight(1f))
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.Bottom
                 ) {
                     Button(onClick = onStartScan) {
-                        Text(text = "Start scan")
+                        Text(text = stringResource(id = R.string.find_lbl))
                     }
                     Button(onClick = onStopScan) {
-                        Text(text = "Stop scan")
+                        Text(text = stringResource(id = R.string.stop_lbl))
                     }
                 }
             }
@@ -123,9 +129,7 @@ fun BluetoothDeviceList(
     ) {
         item {
             Text(
-                text = "Scanned Devices",
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
+                text = stringResource(id = R.string.connect_to_device_explanation),
                 modifier = Modifier.padding(16.dp)
             )
         }
@@ -135,7 +139,8 @@ fun BluetoothDeviceList(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onClick(device) }
-                    .padding(16.dp)
+                    .padding(16.dp),
+                textAlign = TextAlign.Center
             )
         }
     }

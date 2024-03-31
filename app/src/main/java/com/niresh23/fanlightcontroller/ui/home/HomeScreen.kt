@@ -19,6 +19,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -45,12 +46,15 @@ fun HomeScreen(viewModel: FanlightViewModel) {
                 title = {
                     Row {
                         Text(
-                            text = "Home"
+                            text = stringResource(id = R.string.controller_title),
+                            modifier = Modifier.align(Alignment.CenterVertically)
                         )
                         Spacer(modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f))
-                        Button(onClick = {
+                        Button(
+                            modifier = Modifier.padding(end = 16.dp),
+                            onClick = {
                             viewModel.disconnect()
                         }) {
                             Text(text = stringResource(id = R.string.disconnect_lbl))
@@ -100,7 +104,7 @@ fun HomeScreen(viewModel: FanlightViewModel) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 80.dp)
+                .padding(top = 80.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
         ) {
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(route = NavRoute.Color.name) {

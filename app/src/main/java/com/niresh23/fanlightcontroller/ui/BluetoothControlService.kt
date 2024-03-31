@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.graphics.BitmapFactory
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -22,7 +23,6 @@ import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.utils.SettingKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,8 +133,8 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         try {
             val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(getString(R.string.audio_visualizer_title))
-                .setSmallIcon(R.drawable.graphic_eq)
-                .addAction( R.drawable.ic_disonnect, getString(R.string.disconnect_lbl), disconnectIntentPending)
+                .setSmallIcon(R.drawable.ic_notification)
+                .addAction( R.drawable.ic_disconnect, getString(R.string.disconnect_lbl), disconnectIntentPending)
                 .setSilent(true)
                 .setAutoCancel(false)
                 .setOngoing(true)

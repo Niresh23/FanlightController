@@ -83,6 +83,7 @@ private fun generateColorPlate(): List<Color> {
     val list = arrayListOf<Color>()
     val saturation = 1f
     val lightness = 1f
+    list.add(Color.White)
 
     for (i in 0 ..360 step 10) {
         val hsv = android.graphics.Color.HSVToColor(

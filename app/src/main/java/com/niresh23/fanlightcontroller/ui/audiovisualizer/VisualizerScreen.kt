@@ -5,6 +5,9 @@ import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
@@ -18,8 +21,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.datastore.preferences.core.floatPreferencesKey
 import com.karumi.dexter.Dexter
@@ -58,6 +63,8 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
         )
     }
     Column {
+        Text(text = stringResource(id = R.string.visualizer_description))
+        Spacer(modifier = Modifier.fillMaxWidth().height(16.dp))
         Text(text = stringResource(id = R.string.frequency))
         Slider(
             value = sliderPosition.value,
@@ -104,12 +111,15 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
                     }
                 }).check()
             }) {
-                Text("Start Visualizer")
+                Text(stringResource(id = R.string.start_visualizer_lbl))
             }
+            Spacer(modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f))
             Button(onClick = {
                 viewModel.stopAudioVisualizer()
             }) {
-                Text("Stop Visualizer")
+                Text(stringResource(id = R.string.stop_visualizer_lbl))
             }
         }
     }
