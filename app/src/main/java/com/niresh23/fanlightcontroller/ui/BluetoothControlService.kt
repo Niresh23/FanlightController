@@ -8,7 +8,6 @@ import android.bluetooth.BluetoothDevice
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.graphics.BitmapFactory
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -74,10 +73,6 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         return binder
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-    }
-
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when(intent?.action) {
             Actions.Connect.toString() -> {
@@ -134,7 +129,7 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
             val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                 .setContentTitle(getString(R.string.audio_visualizer_title))
                 .setSmallIcon(R.drawable.ic_notification)
-                .addAction( R.drawable.ic_disconnect, getString(R.string.disconnect_lbl), disconnectIntentPending)
+                .addAction(R.drawable.ic_disconnect, getString(R.string.disconnect_lbl), disconnectIntentPending)
                 .setSilent(true)
                 .setAutoCancel(false)
                 .setOngoing(true)

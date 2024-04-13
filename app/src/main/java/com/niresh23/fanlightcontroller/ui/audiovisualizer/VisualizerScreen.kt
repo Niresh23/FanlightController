@@ -25,8 +25,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.datastore.preferences.core.floatPreferencesKey
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberPermissionState
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionDeniedResponse
@@ -40,6 +41,7 @@ import com.niresh23.fanlightcontroller.utils.SettingKey
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
 import kotlinx.coroutines.flow.map
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun VisualizerScreen(viewModel: FanlightViewModel) {
     val context = LocalContext.current as Activity
@@ -49,6 +51,8 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
         val key = floatPreferencesKey(SettingKey.VISUALIZATION_FREQUENCY_KEY)
         it[key] ?: 1f
     }.collectAsState(initial = 1f)
+
+    val recordAudioPermission = rememberPermissionState(permission = Manifest.permission.RECORD_AUDIO)
 
     if (showWarningDialog) {
         SimpleAlertDialog(
@@ -64,7 +68,9 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
     }
     Column {
         Text(text = stringResource(id = R.string.visualizer_description))
-        Spacer(modifier = Modifier.fillMaxWidth().height(16.dp))
+        Spacer(modifier = Modifier
+            .fillMaxWidth()
+            .height(16.dp))
         Text(text = stringResource(id = R.string.frequency))
         Slider(
             value = sliderPosition.value,
@@ -82,13 +88,6 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
                     Manifest.permission.RECORD_AUDIO
                 ).withListener(object : PermissionListener {
                     override fun onPermissionGranted(var1: PermissionGrantedResponse?) {
-                        if (ActivityCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.RECORD_AUDIO
-                            ) != PackageManager.PERMISSION_GRANTED
-                        ) {
-                            return
-                        }
                         viewModel.startAudioVisualizer()
                     }
 
