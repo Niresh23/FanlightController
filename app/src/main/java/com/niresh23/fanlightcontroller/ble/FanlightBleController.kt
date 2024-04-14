@@ -163,7 +163,7 @@ class FanlightBleController(private val context: Context, private val deviceCall
             val isConnected = newState == BluetoothProfile.STATE_CONNECTED
 
             if (isSuccess && isConnected) {
-                if (ActivityCompat.checkSelfPermission(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(
                         context,
                         Manifest.permission.BLUETOOTH_CONNECT
                     ) != PackageManager.PERMISSION_GRANTED

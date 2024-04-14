@@ -2,7 +2,12 @@ package com.niresh23.fanlightcontroller.ui.audiovisualizer
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,15 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.startActivity
 import androidx.datastore.preferences.core.floatPreferencesKey
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberPermissionState
-import com.karumi.dexter.Dexter
-import com.karumi.dexter.PermissionToken
-import com.karumi.dexter.listener.PermissionDeniedResponse
-import com.karumi.dexter.listener.PermissionGrantedResponse
-import com.karumi.dexter.listener.PermissionRequest
-import com.karumi.dexter.listener.single.PermissionListener
+import com.google.accompanist.permissions.shouldShowRationale
 import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.ui.SimpleAlertDialog
@@ -41,12 +43,12 @@ import com.niresh23.fanlightcontroller.utils.SettingKey
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
 import kotlinx.coroutines.flow.map
 
+
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun VisualizerScreen(viewModel: FanlightViewModel) {
     val context = LocalContext.current as Activity
     var showWarningDialog by remember { mutableStateOf(false) }
-    var onDialogConfirmation: () -> Unit by remember { mutableStateOf({}) }
     val sliderPosition = context.settingsDataStore.data.map {
         val key = floatPreferencesKey(SettingKey.VISUALIZATION_FREQUENCY_KEY)
         it[key] ?: 1f
@@ -54,11 +56,24 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
 
     val recordAudioPermission = rememberPermissionState(permission = Manifest.permission.RECORD_AUDIO)
 
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if(isGranted) {
+            viewModel.startAudioVisualizer()
+        } else {
+            showWarningDialog = true
+        }
+    }
+
+
     if (showWarningDialog) {
         SimpleAlertDialog(
             onDismissRequest = { showWarningDialog = false },
             onConfirmation = {
-                onDialogConfirmation.invoke()
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                val uri = Uri.fromParts("package", context.packageName, null)
+                intent.data = uri
+                startActivity(context, intent, null)
+                showWarningDialog = false
             },
             dialogTitle = stringResource(id = R.string.warning_dialog_title),
             dialogText = stringResource(id = R.string.rational_record_permission_request_message),
@@ -66,6 +81,7 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
             contentDescription = ""
         )
     }
+
     Column {
         Text(text = stringResource(id = R.string.visualizer_description))
         Spacer(modifier = Modifier
@@ -84,31 +100,13 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
         )
         Row {
             Button(onClick = {
-                Dexter.withContext(context).withPermission(
-                    Manifest.permission.RECORD_AUDIO
-                ).withListener(object : PermissionListener {
-                    override fun onPermissionGranted(var1: PermissionGrantedResponse?) {
-                        viewModel.startAudioVisualizer()
-                    }
-
-                    override fun onPermissionDenied(response: PermissionDeniedResponse?) {
-                        onDialogConfirmation = fun() {
-                            showWarningDialog = false
-                        }
-                        showWarningDialog = true
-                    }
-
-                    override fun onPermissionRationaleShouldBeShown(
-                        request: PermissionRequest?,
-                        token: PermissionToken?
-                    ) {
-                        onDialogConfirmation = fun() {
-                            showWarningDialog = false
-                            token?.continuePermissionRequest()
-                        }
-                        showWarningDialog = true
-                    }
-                }).check()
+                if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    viewModel.startAudioVisualizer()
+                } else if(recordAudioPermission.status.shouldShowRationale) {
+                    showWarningDialog = true
+                } else {
+                    launcher.launch(Manifest.permission.RECORD_AUDIO)
+                }
             }) {
                 Text(stringResource(id = R.string.start_visualizer_lbl))
             }

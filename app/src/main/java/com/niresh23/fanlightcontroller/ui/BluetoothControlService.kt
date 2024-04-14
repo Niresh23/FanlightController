@@ -16,6 +16,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.datastore.preferences.core.floatPreferencesKey
+import com.karumi.dexter.BuildConfig
 import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.ble.FanlightBleController
 import com.niresh23.fanlightcontroller.settingsDataStore
@@ -50,13 +51,15 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
             this@BluetoothControlService.settingsDataStore.data.map {
                 it[key] ?: 1f
             }.collectLatest {
-                if (ActivityCompat.checkSelfPermission(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(
                         this@BluetoothControlService,
                         Manifest.permission.BLUETOOTH_CONNECT
-                    ) == PackageManager.PERMISSION_GRANTED
+                    ) != PackageManager.PERMISSION_GRANTED
                 ) {
-                    fanlightBleController.setBrightness(it)
+                    return@collectLatest
                 }
+
+                fanlightBleController.setBrightness(it)
             }
         }
 
@@ -77,21 +80,13 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         when(intent?.action) {
             Actions.Connect.toString() -> {
                 startForeground()
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) == PackageManager.PERMISSION_GRANTED
-                ) {
-                    val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         intent.extras?.getParcelable(BLUETOOTH_DEVICE_KEY, BluetoothDevice::class.java)
-                    } else {
-                        intent.extras?.getParcelable(BLUETOOTH_DEVICE_KEY)
-                    }
-                    device?.let {
-                        fanlightBleController.connect(it)
-                    }
                 } else {
-                    stopSelf()
+                        intent.extras?.getParcelable(BLUETOOTH_DEVICE_KEY)
+                }
+                device?.let {
+                    fanlightBleController.connect(it)
                 }
             }
 

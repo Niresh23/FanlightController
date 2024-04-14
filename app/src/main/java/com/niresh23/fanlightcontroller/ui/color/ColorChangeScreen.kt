@@ -3,6 +3,7 @@ package com.niresh23.fanlightcontroller.ui.color
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -63,13 +64,14 @@ fun ColorScreen(
                     modifier = Modifier
                         .background(color)
                         .clickable {
-                            if (ActivityCompat.checkSelfPermission(
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.BLUETOOTH_CONNECT
-                                ) == PackageManager.PERMISSION_GRANTED
+                                ) != PackageManager.PERMISSION_GRANTED
                             ) {
-                                viewModel.changeColor(color.toIntHexColor())
+                                return@clickable
                             }
+                            viewModel.changeColor(color.toIntHexColor())
                         }
                         .height(50.dp)
                         .width(50.dp)
