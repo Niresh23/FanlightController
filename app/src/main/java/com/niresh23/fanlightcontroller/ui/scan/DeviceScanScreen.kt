@@ -1,8 +1,10 @@
 package com.niresh23.fanlightcontroller.ui.scan
 
 import android.bluetooth.BluetoothDevice
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -72,26 +77,50 @@ fun DeviceScreen(
                     )
                 }
                 Text(text = stringResource(id = R.string.scan_description_message))
-                when(state) {
-                    is DeviceScanViewState.ActiveScan -> {
-                        loading = true
-                    }
-                    is DeviceScanViewState.Error -> {
-                        Text(text = state.message)
-                        loading = false
-                    }
-                    is DeviceScanViewState.ScanResults -> {
-                        loading = false
-                        BluetoothDeviceList(
-                            scannedDevices = state.scanResults.values.toList(),
-                            onClick = onDeviceClick,
+                Card(modifier = Modifier.padding(all = 16.dp)) {
+                    Column {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f)
-                        )
-                    }
-                    else -> {
+                                .padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Button(onClick = onStartScan) {
+                                Text(text = stringResource(id = R.string.find_lbl))
+                            }
+                            Button(onClick = onStopScan) {
+                                Text(text = stringResource(id = R.string.stop_lbl))
+                            }
+                        }
 
+                        HorizontalDivider(
+                            modifier = Modifier.padding(16.dp)
+                        )
+
+                        Box(modifier = Modifier.padding(bottom = 16.dp) ) {
+                            when(state) {
+                                is DeviceScanViewState.ActiveScan -> {
+                                    loading = true
+                                }
+                                is DeviceScanViewState.Error -> {
+                                    Text(text = state.message)
+                                    loading = false
+                                }
+                                is DeviceScanViewState.ScanResults -> {
+                                    loading = false
+                                    BluetoothDeviceList(
+                                        scannedDevices = state.scanResults.values.toList(),
+                                        onClick = onDeviceClick,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                    )
+                                }
+                                else -> {
+
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -99,20 +128,6 @@ fun DeviceScreen(
                     Modifier
                         .fillMaxHeight()
                         .weight(1f))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    Button(onClick = onStartScan) {
-                        Text(text = stringResource(id = R.string.find_lbl))
-                    }
-                    Button(onClick = onStopScan) {
-                        Text(text = stringResource(id = R.string.stop_lbl))
-                    }
-                }
             }
         }
     }
