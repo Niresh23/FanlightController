@@ -1,35 +1,36 @@
 package com.niresh23.fanlightcontroller
 
 import android.Manifest
+import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.Build.VERSION_CODES
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.core.app.ActivityCompat
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -47,22 +48,22 @@ import com.niresh23.fanlightcontroller.ui.BluetoothControlService
 import com.niresh23.fanlightcontroller.ui.home.HomeScreen
 import com.niresh23.fanlightcontroller.ui.pemissions.PermissionBottomSheet
 import com.niresh23.fanlightcontroller.ui.pemissions.PermissionViewModel
-import com.niresh23.fanlightcontroller.ui.scan.DeviceScreen
 import com.niresh23.fanlightcontroller.ui.theme.FanlightControllerTheme
-import com.niresh23.fanlightcontroller.ui.scan.DeviceScanViewModel
+import com.niresh23.fanlightcontroller.ui.connection.ConnectionViewModel
+import com.niresh23.fanlightcontroller.ui.extensions.startAppSettingIntent
 import com.niresh23.fanlightcontroller.utils.SettingKey
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
-import com.niresh23.fanlightcontroller.viewstate.DeviceConnectionState
 import com.niresh23.fanlightcontroller.viewstate.StickActions
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private val deviceScanViewModel: DeviceScanViewModel by viewModels()
+    private val connectionViewModel: ConnectionViewModel by viewModels()
     private val fanlightViewModel: FanlightViewModel by viewModels()
     private val permissionViewModel: PermissionViewModel by viewModels()
     private lateinit var mService: BluetoothControlService
     private var mBound: Boolean = false
+    private var currentDeviceConnectionId = ""
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -116,17 +117,18 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                    } }
+                    }}
                     launch {
-                        mService.actionFlow.collectLatest {  action ->
+                        mService.actionFlow.collectLatest { action ->
                             when(action) {
-                                FanlightBleController.DeviceActions.Connecting -> {
+                                is FanlightBleController.DeviceActions.Connecting -> {
                                     fanlightViewModel.connecting()
                                 }
-                                FanlightBleController.DeviceActions.Connected -> {
+                                is FanlightBleController.DeviceActions.Connected -> {
+                                    connectionViewModel
                                     fanlightViewModel.connected()
                                 }
-                                FanlightBleController.DeviceActions.Disconnected -> {
+                                is FanlightBleController.DeviceActions.Disconnected -> {
                                     fanlightViewModel.disconnected()
                                 }
                             }
@@ -142,96 +144,104 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             FanlightControllerTheme {
-                val permissionViewState = rememberModalBottomSheetState(
-                    skipPartiallyExpanded  = true,
-                    confirmValueChange = { false }
-                )
+
+                var showAlertDialog by remember { mutableStateOf(false) }
+                val requestConnectPermissionLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) { isGranted ->
+                    showAlertDialog = false
+
+                    if (isGranted) {
+                        connectToDevice()
+                    }
+                }
+
                 val scope = rememberCoroutineScope()
-                var showPermissionView by remember { mutableStateOf(false) }
-                val deviceScanningState by deviceScanViewModel.viewState.collectAsState()
-                val deviceConnectionState by fanlightViewModel.connectionStateFlow.collectAsState()
 
-                if (ActivityCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                    ) !=  PackageManager.PERMISSION_GRANTED ||
-                    ActivityCompat.checkSelfPermission(
+                LaunchedEffect(key1 = true) {
+                    if (ActivityCompat.checkSelfPermission(
                             this@MainActivity,
-                        Manifest.permission.BLUETOOTH_ADMIN
-                    ) !=  PackageManager.PERMISSION_GRANTED ||
-                    ActivityCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.BLUETOOTH
-                    ) !=  PackageManager.PERMISSION_GRANTED ||
-                    ActivityCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    ) !=  PackageManager.PERMISSION_GRANTED
-                ) {
-                    showPermissionView = true
-                }
-
-                if(showPermissionView) {
-                    ModalBottomSheet(
-                        onDismissRequest = {},
-                        sheetState = permissionViewState
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) !=  PackageManager.PERMISSION_GRANTED ||
+                        ActivityCompat.checkSelfPermission(
+                            this@MainActivity,
+                            Manifest.permission.BLUETOOTH_ADMIN
+                        ) !=  PackageManager.PERMISSION_GRANTED ||
+                        ActivityCompat.checkSelfPermission(
+                            this@MainActivity,
+                            Manifest.permission.BLUETOOTH
+                        ) !=  PackageManager.PERMISSION_GRANTED ||
+                        ActivityCompat.checkSelfPermission(
+                            this@MainActivity,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) !=  PackageManager.PERMISSION_GRANTED
                     ) {
-                        PermissionBottomSheet(permissionViewModel) {
-                            scope.launch { permissionViewState.hide() }.invokeOnCompletion {
-                                if (!permissionViewState.isVisible) {
-                                    showPermissionView = false
-                                }
+                        scope.launch {
+//                            permissionViewState.show()
+                        }
+                    }
+
+                    scope.launch {
+                        connectionViewModel.connectToDeviceFlow.collectLatest { device ->
+                            currentDeviceConnectionId = device
+                            if (ActivityCompat.checkSelfPermission(
+                                    this@MainActivity,
+                                    Manifest.permission.BLUETOOTH_CONNECT
+                                ) == PackageManager.PERMISSION_GRANTED
+                            ) {
+                                connectToDevice()
+                            } else if (ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT)) {
+                                showAlertDialog = true
+                            } else {
+                                requestConnectPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                             }
                         }
                     }
                 }
 
+                HomeScreen(
+                    viewModel = fanlightViewModel,
+                    connectionViewModel = connectionViewModel
+                )
 
-                when(deviceConnectionState) {
-                    DeviceConnectionState.Disconnected -> {
-                        DeviceScreen(
-                            state = deviceScanningState,
-                            onStartScan = {
-                                if(Build.VERSION.SDK_INT >= VERSION_CODES.S) {
-                                    checkPermission(this@MainActivity, Manifest.permission.BLUETOOTH_SCAN) {
-                                        deviceScanViewModel.startScan()
-                                    }
-                                } else {
-                                    deviceScanViewModel.startScan()
-                                }
+                if (showAlertDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showAlertDialog = false },
+                        confirmButton = {
+                            TextButton(onClick = { requestConnectPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT) }) {
+                                Text(text = "Ok")
                             }
-                            ,
-                            onStopScan = { deviceScanViewModel.stopScanning() },
-                            onDeviceClick = fun(device) {
-                                Intent(this@MainActivity, BluetoothControlService::class.java).also {
-                                    it.putExtra(BluetoothControlService.BLUETOOTH_DEVICE_KEY, device)
-                                    it.action = BluetoothControlService.Actions.Connect.toString()
-                                    this@MainActivity.startService(it)
-                                    this@MainActivity.bindService(it, connection, BIND_AUTO_CREATE)
-                                }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showAlertDialog = false }) {
+                                Text(text = "Cancel")
                             }
-                        )
-                    }
-                    DeviceConnectionState.Connecting -> {
-                        Intent()
-                        Scaffold {
-                            it.calculateTopPadding()
-                            it.calculateBottomPadding()
-                            Surface {
-                                Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()){
-                                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                        },
+                        title = {
+                            Text(
+                                text = stringResource(id = R.string.connect_permission_title),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+
+                        },
+                        text = {
+                            Column {
+                                Text(
+                                    text = stringResource(id = R.string.rational_message_connect_permission),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                TextButton(onClick = {
+                                    showAlertDialog = false
+                                    this@MainActivity.startAppSettingIntent()
+                                }) {
+                                    Text(text = stringResource(id = R.string.go_to_app_settings))
                                 }
                             }
                         }
-                    }
-                    DeviceConnectionState.Connected -> {
-                        HomeScreen(viewModel = fanlightViewModel)
-                    }
+                    )
                 }
             }
         }
@@ -242,19 +252,34 @@ class MainActivity : ComponentActivity() {
         unbindService(connection)
     }
 
+    private fun connectToDevice() {
+        Intent(
+            this@MainActivity,
+            BluetoothControlService::class.java
+        ).also { intent ->
+            intent.putExtra(
+                BluetoothControlService.BLUETOOTH_DEVICE_KEY,
+                currentDeviceConnectionId
+            )
+            intent.action =
+                BluetoothControlService.Actions.Connect.toString()
+            this@MainActivity.startService(intent)
+            this@MainActivity.bindService(
+                intent,
+                connection,
+                Context.BIND_AUTO_CREATE
+            )
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onStart() {
         super.onStart()
         Dexter.withContext(this).withPermission(
             Manifest.permission.POST_NOTIFICATIONS
         ).withListener(object : PermissionListener {
             override fun onPermissionGranted(var1: PermissionGrantedResponse?) {
-                if (ActivityCompat.checkSelfPermission(
-                        this@MainActivity,
-                        Manifest.permission.RECORD_AUDIO
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    return
-                }
+
             }
 
             override fun onPermissionDenied(response: PermissionDeniedResponse?) {
@@ -273,13 +298,5 @@ class MainActivity : ComponentActivity() {
             this@MainActivity.startService(it)
             this@MainActivity.bindService(it, connection, Context.BIND_AUTO_CREATE)
         }
-    }
-}
-
-inline fun <T> checkPermission(context: Context, permission: String, click: () -> T) {
-    if (ActivityCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
-        click.invoke()
-    } else {
-
     }
 }

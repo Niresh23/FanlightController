@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SettingsBluetooth
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -18,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,47 +32,31 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.ui.audiovisualizer.VisualizerScreen
 import com.niresh23.fanlightcontroller.ui.color.ColorScreen
+import com.niresh23.fanlightcontroller.ui.connection.ConnectionScreen
+import com.niresh23.fanlightcontroller.ui.connection.ConnectionViewModel
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(viewModel: FanlightViewModel) {
-    val startDestination = NavRoute.Color.name
+fun HomeScreen(
+    viewModel: FanlightViewModel,
+    connectionViewModel: ConnectionViewModel
+) {
+    val startDestination = NavRoute.Connection.name
     val navController = rememberNavController()
-    
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row {
-                        Text(
-                            text = stringResource(id = R.string.controller_title),
-                            modifier = Modifier.align(Alignment.CenterVertically)
-                        )
-                        Spacer(modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f))
-                        Button(
-                            modifier = Modifier.padding(end = 16.dp),
-                            onClick = {
-                            viewModel.disconnect()
-                        }) {
-                            Text(text = stringResource(id = R.string.disconnect_lbl))
-                        }
-                    }
 
-                }
-            )},
+    Scaffold(
         bottomBar = {
             NavigationBar {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
-                NavRoute.values().map { it.name }.forEachIndexed { _, item ->
+                NavRoute.entries.map { it.name }.forEachIndexed { _, item ->
                     NavigationBarItem(
                         icon = { when(item) {
+                            NavRoute.Connection.name -> {
+                                Icon(Icons.Filled.SettingsBluetooth, contentDescription = item)
+                            }
                             NavRoute.Color.name -> {
                                 Icon(Icons.Filled.Palette, contentDescription = item)
                             }
@@ -98,15 +85,24 @@ fun HomeScreen(viewModel: FanlightViewModel) {
                 }
         }})
     {
-        it.calculateTopPadding()
-        it.calculateBottomPadding()
+        val topPadding = it.calculateTopPadding()
+        val bottomPadding = it.calculateBottomPadding()
 
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 80.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
+                .padding(top = topPadding + 16.dp, start = 16.dp, end = 16.dp, bottom = bottomPadding)
         ) {
             NavHost(navController = navController, startDestination = startDestination) {
+                composable(route = NavRoute.Connection.name) {
+
+                    ConnectionScreen(
+                        viewState = connectionViewModel.viewState.collectAsState().value,
+                        devicesListState = connectionViewModel.deviceMapState
+                    ) { action ->
+                        connectionViewModel.onAction(action)
+                    }
+                }
                 composable(route = NavRoute.Color.name) {
                     ColorScreen(viewModel = viewModel)
                 }
@@ -116,6 +112,4 @@ fun HomeScreen(viewModel: FanlightViewModel) {
             }
         }
     }
-
-
 }

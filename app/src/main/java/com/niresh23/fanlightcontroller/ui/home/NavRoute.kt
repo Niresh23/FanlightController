@@ -1,6 +1,7 @@
 package com.niresh23.fanlightcontroller.ui.home
 
-enum class NavRoute() {
+enum class NavRoute {
+    Connection,
     Color,
     Visualizer
 }

@@ -1,4 +1,4 @@
-package com.niresh23.fanlightcontroller.ui.scan
+package com.niresh23.fanlightcontroller.ui.connection
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -14,11 +14,12 @@ import android.os.ParcelUuid
 import androidx.annotation.RequiresPermission
 import com.niresh23.fanlightcontroller.utils.Constants
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
-class BleScannerAdapter(private val context: Context, private val coroutineScope: CoroutineScope) {
+class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineScope) {
 
     companion object {
         private const val SCAN_PERIOD = 20000L
@@ -37,11 +38,6 @@ class BleScannerAdapter(private val context: Context, private val coroutineScope
     private lateinit var scanFilters: List<ScanFilter>
     private lateinit var scanSettings: ScanSettings
 
-
-    fun onDismiss() {
-
-    }
-
     @RequiresPermission(value = "android.permission.BLUETOOTH_SCAN")
     fun stopScan() {
         scanner?.stopScan(scanCallback)
@@ -55,11 +51,15 @@ class BleScannerAdapter(private val context: Context, private val coroutineScope
     fun startScan() {
         scanFilters = buildScanFilters()
         scanSettings = buildScanSettings()
-
+        coroutineScope.launch {
+            _scanActionFlow.emit(ScanAction.Scanning)
+        }
         if (scanCallback == null) {
             scanner = adapter?.bluetoothLeScanner
-
-            Handler().postDelayed( { stopScan() }, SCAN_PERIOD)
+            coroutineScope.launch {
+                delay(SCAN_PERIOD)
+                stopScan()
+            }
 
             scanCallback = DeviceScanCallback()
             scanner?.startScan(scanFilters, scanSettings, scanCallback)
@@ -116,6 +116,7 @@ class BleScannerAdapter(private val context: Context, private val coroutineScope
     }
 
     sealed interface ScanAction {
+        data object Scanning: ScanAction
         data class ScanResult(val scanResults: Map<String, BluetoothDevice>): ScanAction
         data class Error(val message: String): ScanAction
     }

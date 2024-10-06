@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,6 +41,7 @@ import com.google.accompanist.permissions.shouldShowRationale
 import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.ui.SimpleAlertDialog
+import com.niresh23.fanlightcontroller.ui.extensions.startAppSettingIntent
 import com.niresh23.fanlightcontroller.utils.SettingKey
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
 import kotlinx.coroutines.flow.map
@@ -76,7 +79,20 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
                 showWarningDialog = false
             },
             dialogTitle = stringResource(id = R.string.warning_dialog_title),
-            dialogText = stringResource(id = R.string.rational_record_permission_request_message),
+            dialogText = {
+                Column {
+                    Text(
+                        text = stringResource(id = R.string.rational_record_permission_request_message),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(onClick = {
+                        showWarningDialog = false
+                        context.startAppSettingIntent()
+                    }) {
+                        Text(text = stringResource(id = R.string.go_to_app_settings))
+                    }
+                }
+            },
             icon = Icons.Outlined.WarningAmber,
             contentDescription = ""
         )

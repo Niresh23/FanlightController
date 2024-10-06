@@ -1,10 +1,13 @@
 package com.niresh23.fanlightcontroller.ble
 
 import android.Manifest
+import android.app.Service
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
@@ -15,31 +18,35 @@ import com.niresh23.fanlightcontroller.utils.Constants
 import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.Queue
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.min
 
-class FanlightBleController(private val context: Context, private val deviceCallback: DeviceCallback) {
+class FanlightBleController(
+    private val context: Context,
+    private val deviceCallback: DeviceCallback,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
+    )
+{
+    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    private val adapter: BluetoothAdapter? = bluetoothManager?.adapter
     private var gattClient: BluetoothGatt? = null
     private var gattClientCallback: GattClientCallback? = null
     private var gatt: BluetoothGatt? = null
     private var messageCharacteristic: BluetoothGattCharacteristic? = null
     private var currentDevice: BluetoothDevice? = null
     private val sendQueue: Queue<ByteArray> = ConcurrentLinkedQueue()
-    private val job = SupervisorJob()
-    private val scope = CoroutineScope(Dispatchers.IO + job)
     private var brightness = 1f
     private var currentColor: Int = 0
 
     private val audioVisualizer = AudioVisualizer()
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    fun connect(device: BluetoothDevice) {
-        deviceCallback.onAction(DeviceActions.Connecting)
+    fun connect(deviceAddress: String) {
+        val device = adapter?.getRemoteDevice(deviceAddress)
+        deviceCallback.onAction(DeviceActions.Connecting(deviceAddress))
         scope.launch {
             audioVisualizer.colorSharedFlow.collectLatest {
                 colorChange(it)
@@ -47,7 +54,8 @@ class FanlightBleController(private val context: Context, private val deviceCall
         }
         currentDevice = device
         gattClientCallback = GattClientCallback()
-        gattClient = device.connectGatt(context, false, gattClientCallback)
+
+        gattClient = device?.connectGatt(context, true, gattClientCallback)
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
@@ -168,18 +176,11 @@ class FanlightBleController(private val context: Context, private val deviceCall
                         Manifest.permission.BLUETOOTH_CONNECT
                     ) != PackageManager.PERMISSION_GRANTED
                 ) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
                     return
                 }
                 gatt.discoverServices()
             } else {
-                deviceCallback.onAction(DeviceActions.Disconnected)
+                deviceCallback.onAction(DeviceActions.Disconnected(gatt.device.address))
             }
         }
 
@@ -191,7 +192,7 @@ class FanlightBleController(private val context: Context, private val deviceCall
                 if(service != null) {
                     messageCharacteristic = service.getCharacteristic(Constants.MESSAGE_UUID)
                     currentDevice?.let {
-                        deviceCallback.onAction(DeviceActions.Connected)
+                        deviceCallback.onAction(DeviceActions.Connected(discoveredGatt.device.address))
                     }
                 }
             }
@@ -202,9 +203,9 @@ class FanlightBleController(private val context: Context, private val deviceCall
         fun onAction(action: DeviceActions)
     }
 
-    enum class DeviceActions {
-        Connecting,
-        Connected,
-        Disconnected
+    sealed interface DeviceActions {
+        data class Connecting(val address: String): DeviceActions
+        data class Connected(val address: String): DeviceActions
+        data class Disconnected(val address: String): DeviceActions
     }
 }

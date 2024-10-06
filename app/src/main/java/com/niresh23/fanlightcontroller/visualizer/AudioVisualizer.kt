@@ -53,6 +53,7 @@ class AudioVisualizer {
 
     fun release() {
         visualizer?.release()
+        visualizer = null
     }
 
     private var magnitudes = floatArrayOf()

@@ -16,18 +16,15 @@ class PermissionViewModel: ViewModel() {
     private val _actionFlow = MutableSharedFlow<Action>()
     val actionFlow = _actionFlow.asSharedFlow()
 
-    private val _actionViewFlow = MutableStateFlow<ActionView>(ActionView.Close)
+    private val _actionViewFlow = MutableStateFlow<ActionView>(ActionView.Non)
     val actonViewFlow = _actionViewFlow.asStateFlow()
 
-    fun requestBluetoothPermissionClicked() {
+    private val _showDialogFlow = MutableStateFlow<ShowDialogState>(ShowDialogState.Closed)
+    val showDialogFlow = _showDialogFlow.asStateFlow()
+
+    fun requestBluetoothPermission() {
         viewModelScope.launch {
             _actionFlow.emit(Action.RequestBluetoothPermission)
-        }
-    }
-
-    fun requestLocationPermissionClicked() {
-        viewModelScope.launch {
-            _actionFlow.emit(Action.RequestLocationPermission)
         }
     }
 
@@ -35,17 +32,10 @@ class PermissionViewModel: ViewModel() {
         _viewStateFlow.value = _viewStateFlow.value.copy(bluetoothPermissionGranted = status)
     }
 
-    fun locationPermissionGranted(status: Boolean) {
-        _viewStateFlow.value = _viewStateFlow.value.copy(locationPermissionGranted = status)
-    }
-
     fun bluetoothEnable(isEnabled: Boolean) {
         _viewStateFlow.value = _viewStateFlow.value.copy(bluetoothIsEnabled = isEnabled)
     }
 
-    fun locationEnable(isEnabled: Boolean) {
-        _viewStateFlow.value = _viewStateFlow.value.copy(locationIsEnabled = isEnabled)
-    }
 
     fun enableBluetoothClicked() {
         viewModelScope.launch {
@@ -57,14 +47,11 @@ class PermissionViewModel: ViewModel() {
         }
     }
 
-    fun enableLocationClicked() {
-        viewModelScope.launch {
-            if (!_viewStateFlow.value.locationPermissionGranted) {
-                _actionViewFlow.emit(ActionView.ShowLocationPermissionDialog)
-            } else if(!_viewStateFlow.value.locationIsEnabled) {
-                _actionFlow.emit(Action.EnableLocation)
-            }
-        }
+    fun showDialog(
+        message: String,
+        onConfirmation: () -> Unit
+    ) {
+        _showDialogFlow.value = ShowDialogState.ShownDialog(message, onConfirmation)
     }
 
     fun showExceptionDialog(exception: Exception) {
@@ -73,21 +60,31 @@ class PermissionViewModel: ViewModel() {
         }
     }
 
+    fun showAlertDialog() {
+
+    }
+
     fun closeDialog() {
-        _actionViewFlow.value = ActionView.Close
+        _showDialogFlow.value = ShowDialogState.Closed
+    }
+
+    sealed interface ShowDialogState {
+        data object Closed: ShowDialogState
+        data class ShownDialog(
+            val message: String,
+            val onConfirmation: () -> Unit
+        ): ShowDialogState
     }
 
     sealed interface Action {
-        object EnableBluetooth: Action
-        object EnableLocation: Action
-        object RequestBluetoothPermission: Action
-        object RequestLocationPermission: Action
+        data object EnableBluetooth: Action
+        data object RequestBluetoothPermission: Action
     }
 
     sealed interface ActionView {
-        object Close: ActionView
-        object ShowBluetoothPermissionDialog: ActionView
-        object ShowLocationPermissionDialog: ActionView
+        data object Non: ActionView
+        data object ShowBluetoothPermissionDialog: ActionView
+        data object ShowEnableBluetoothDialog: ActionView
         data class ShowErrorDialog(val message: String): ActionView
     }
 }

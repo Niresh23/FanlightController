@@ -14,7 +14,7 @@ fun SimpleAlertDialog(
     onDismissRequest: () -> Unit,
     onConfirmation: () -> Unit,
     dialogTitle: String,
-    dialogText: String,
+    dialogText: @Composable (() -> Unit),
     icon: ImageVector,
     contentDescription: String
 ) {
@@ -25,9 +25,7 @@ fun SimpleAlertDialog(
         title = {
             Text(text = dialogTitle)
         },
-        text = {
-            Text(text = dialogText)
-        },
+        text = dialogText,
         onDismissRequest = {
             onDismissRequest()
         },
