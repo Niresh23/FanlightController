@@ -11,8 +11,8 @@ android {
         applicationId = "com.niresh23.fanlightcontroller"
         minSdk = 28
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.0.1"
+        versionCode = 3
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
