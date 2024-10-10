@@ -45,22 +45,23 @@ import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
 import com.niresh23.fanlightcontroller.ble.FanlightBleController
 import com.niresh23.fanlightcontroller.ui.BluetoothControlService
+import com.niresh23.fanlightcontroller.ui.connection.ConnectionAction
 import com.niresh23.fanlightcontroller.ui.home.HomeScreen
-import com.niresh23.fanlightcontroller.ui.pemissions.PermissionBottomSheet
-import com.niresh23.fanlightcontroller.ui.pemissions.PermissionViewModel
 import com.niresh23.fanlightcontroller.ui.theme.FanlightControllerTheme
 import com.niresh23.fanlightcontroller.ui.connection.ConnectionViewModel
 import com.niresh23.fanlightcontroller.ui.extensions.startAppSettingIntent
 import com.niresh23.fanlightcontroller.utils.SettingKey
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
 import com.niresh23.fanlightcontroller.viewstate.StickActions
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flattenMerge
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val connectionViewModel: ConnectionViewModel by viewModels()
     private val fanlightViewModel: FanlightViewModel by viewModels()
-    private val permissionViewModel: PermissionViewModel by viewModels()
     private lateinit var mService: BluetoothControlService
     private var mBound: Boolean = false
     private var currentDeviceConnectionId = ""
@@ -72,52 +73,6 @@ class MainActivity : ComponentActivity() {
             mService = binder.getService()
             lifecycleScope.launch {
                 repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    launch { fanlightViewModel.actionFlow.collectLatest { action ->
-                        when(action) {
-                            is StickActions.Disconnect -> {
-                                Intent(this@MainActivity, BluetoothControlService::class.java).also {
-                                    it.action = BluetoothControlService.Actions.Disconnect.toString()
-                                    this@MainActivity.startService(it)
-                                }
-                            }
-
-                            is StickActions.ChangeColor -> {
-                                Intent(this@MainActivity, BluetoothControlService::class.java).also {
-                                    it.putExtra(BluetoothControlService.COLOR_KEY, action.color)
-                                    it.action = BluetoothControlService.Actions.ChangeColor.toString()
-                                    this@MainActivity.startService(it)
-                                }
-                            }
-
-                            is StickActions.StartAudioVisualizer -> {
-                                Intent(this@MainActivity, BluetoothControlService::class.java).also {
-                                    it.action = BluetoothControlService.Actions.StartAudioVisualizer.toString()
-                                    this@MainActivity.startService(it)
-                                }
-                            }
-
-                            is StickActions.StopAudioVisualizer -> {
-                                Intent(this@MainActivity, BluetoothControlService::class.java).also {
-                                    it.action = BluetoothControlService.Actions.StopAudioVisualizer.toString()
-                                    this@MainActivity.startService(it)
-                                }
-                            }
-
-                            is StickActions.ChangeVisualizationFrequency -> {
-                                this@MainActivity.settingsDataStore.edit { settings ->
-                                    val key = floatPreferencesKey(SettingKey.VISUALIZATION_FREQUENCY_KEY)
-                                    settings[key] = action.value
-                                }
-                            }
-
-                            is StickActions.ChangeBrightnessValue -> {
-                                this@MainActivity.settingsDataStore.edit { settings ->
-                                    val key = floatPreferencesKey(SettingKey.BRIGHTNESS_KEY)
-                                    settings[key] = action.brightness
-                                }
-                            }
-                        }
-                    }}
                     launch {
                         mService.actionFlow.collectLatest { action ->
                             when(action) {
@@ -125,10 +80,11 @@ class MainActivity : ComponentActivity() {
                                     fanlightViewModel.connecting()
                                 }
                                 is FanlightBleController.DeviceActions.Connected -> {
-                                    connectionViewModel
+                                    connectionViewModel.onAction(ConnectionAction.DeviceConnected(action.address))
                                     fanlightViewModel.connected()
                                 }
                                 is FanlightBleController.DeviceActions.Disconnected -> {
+                                    connectionViewModel.onAction(ConnectionAction.DeviceDisconnected(action.address))
                                     fanlightViewModel.disconnected()
                                 }
                             }
@@ -144,6 +100,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -185,18 +142,65 @@ class MainActivity : ComponentActivity() {
                     }
 
                     scope.launch {
-                        connectionViewModel.connectToDeviceFlow.collectLatest { device ->
-                            currentDeviceConnectionId = device
-                            if (ActivityCompat.checkSelfPermission(
-                                    this@MainActivity,
-                                    Manifest.permission.BLUETOOTH_CONNECT
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                connectToDevice()
-                            } else if (ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT)) {
-                                showAlertDialog = true
-                            } else {
-                                requestConnectPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        flowOf(fanlightViewModel.actionFlow, connectionViewModel.actionFlow).flattenMerge().collectLatest { action ->
+                            when(action) {
+                                is StickActions.Connect -> {
+                                    currentDeviceConnectionId = action.address
+                                    if (ActivityCompat.checkSelfPermission(
+                                            this@MainActivity,
+                                            Manifest.permission.BLUETOOTH_CONNECT
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        connectToDevice()
+                                    } else if (ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT)) {
+                                        showAlertDialog = true
+                                    } else {
+                                        requestConnectPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                                    }
+                                }
+                                is StickActions.Disconnect -> {
+                                    Intent(this@MainActivity, BluetoothControlService::class.java).also {
+                                        it.putExtra(BluetoothControlService.BLUETOOTH_DEVICE_KEY, action.address)
+                                        it.action = BluetoothControlService.Actions.Disconnect.toString()
+                                        this@MainActivity.startService(it)
+                                    }
+                                }
+
+                                is StickActions.ChangeColor -> {
+                                    Intent(this@MainActivity, BluetoothControlService::class.java).also {
+                                        it.putExtra(BluetoothControlService.COLOR_KEY, action.color)
+                                        it.action = BluetoothControlService.Actions.ChangeColor.toString()
+                                        this@MainActivity.startService(it)
+                                    }
+                                }
+
+                                is StickActions.StartAudioVisualizer -> {
+                                    Intent(this@MainActivity, BluetoothControlService::class.java).also {
+                                        it.action = BluetoothControlService.Actions.StartAudioVisualizer.toString()
+                                        this@MainActivity.startService(it)
+                                    }
+                                }
+
+                                is StickActions.StopAudioVisualizer -> {
+                                    Intent(this@MainActivity, BluetoothControlService::class.java).also {
+                                        it.action = BluetoothControlService.Actions.StopAudioVisualizer.toString()
+                                        this@MainActivity.startService(it)
+                                    }
+                                }
+
+                                is StickActions.ChangeVisualizationFrequency -> {
+                                    this@MainActivity.settingsDataStore.edit { settings ->
+                                        val key = floatPreferencesKey(SettingKey.VISUALIZATION_FREQUENCY_KEY)
+                                        settings[key] = action.value
+                                    }
+                                }
+
+                                is StickActions.ChangeBrightnessValue -> {
+                                    this@MainActivity.settingsDataStore.edit { settings ->
+                                        val key = floatPreferencesKey(SettingKey.BRIGHTNESS_KEY)
+                                        settings[key] = action.brightness
+                                    }
+                                }
                             }
                         }
                     }

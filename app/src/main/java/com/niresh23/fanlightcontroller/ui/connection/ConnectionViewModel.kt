@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.niresh23.fanlightcontroller.viewstate.StickActions
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -23,8 +24,8 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
 
     private val bleScannerAdapter = BleScannerAdapter(app, viewModelScope)
 
-    private val _connectToDeviceFlow = MutableSharedFlow<String>()
-    val connectToDeviceFlow = _connectToDeviceFlow.asSharedFlow()
+    private val _actionFlow = MutableSharedFlow<StickActions>()
+    val actionFlow = _actionFlow.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -33,10 +34,12 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
                     is BleScannerAdapter.ScanAction.ScanResult -> {
                         _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
                         scanAction.scanResults.forEach { (address, device) ->
-                            deviceMapState[address] = DeviceViewState.Disconnected(
-                                "Exo Light stick",
-                                address
-                            )
+                            if (!deviceMapState.contains(address)) {
+                                deviceMapState[address] = DeviceViewState.Disconnected(
+                                    "Exo Light Stick",
+                                    address
+                                )
+                            }
                         }
                     }
                     is BleScannerAdapter.ScanAction.Error -> {
@@ -54,11 +57,11 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
         viewModelScope.launch {
             when(action) {
                 is ConnectionAction.Connect -> {
-                    _connectToDeviceFlow.emit(action.deviceAddress)
+                    _actionFlow.emit(StickActions.Connect(action.deviceAddress))
                 }
 
                 is ConnectionAction.Disconnect -> {
-                    _connectToDeviceFlow.emit(action.deviceAddress)
+                    _actionFlow.emit(StickActions.Disconnect(action.deviceAddress))
                 }
 
                 ConnectionAction.Scan -> {
@@ -77,6 +80,11 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
                 is ConnectionAction.DeviceConnected -> {
                     deviceMapState[action.deviceAddress] =
                         DeviceViewState.Connected("Exo Light Stick", address = action.deviceAddress)
+                }
+
+                is ConnectionAction.DeviceDisconnected -> {
+                    deviceMapState[action.deviceAddress] =
+                        DeviceViewState.Disconnected("Exo Light Stick", address = action.deviceAddress)
                 }
             }
         }

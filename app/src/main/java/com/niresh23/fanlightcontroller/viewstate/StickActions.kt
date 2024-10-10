@@ -1,7 +1,8 @@
 package com.niresh23.fanlightcontroller.viewstate
 
 sealed interface StickActions {
-    data object Disconnect : StickActions
+    data class Connect(val address: String): StickActions
+    data class Disconnect(val address: String) : StickActions
     data object StartAudioVisualizer : StickActions
     data object StopAudioVisualizer : StickActions
     data class ChangeColor(val color: Int) : StickActions

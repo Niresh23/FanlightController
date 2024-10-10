@@ -12,6 +12,7 @@ sealed interface ConnectionAction {
     ): ConnectionAction
 
     data class DeviceConnected(val deviceAddress: String): ConnectionAction
+    data class DeviceDisconnected(val deviceAddress: String): ConnectionAction
 
     data object StopScan: ConnectionAction
 }

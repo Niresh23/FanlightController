@@ -32,12 +32,6 @@ class FanlightViewModel(private val application: Application): AndroidViewModel(
         _connectionStateFlow.value = DeviceConnectionState.Disconnected
     }
 
-    fun disconnect() {
-        viewModelScope.launch {
-            _actionFlow.emit(StickActions.Disconnect)
-        }
-    }
-
     fun startAudioVisualizer() {
         viewModelScope.launch {
             _actionFlow.emit(StickActions.StartAudioVisualizer)
