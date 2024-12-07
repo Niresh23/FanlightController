@@ -70,6 +70,8 @@ dependencies {
     //Data Store
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    //DI
+    implementation("io.insert-koin:koin-android:4.0.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

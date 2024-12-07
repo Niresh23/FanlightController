@@ -1,30 +1,21 @@
 package com.niresh23.fanlightcontroller.ui.home
 
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBluetooth
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -91,23 +82,28 @@ fun HomeScreen(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = topPadding + 16.dp, start = 16.dp, end = 16.dp, bottom = bottomPadding)
+                .padding(
+                    top = topPadding + 16.dp,
+                    start = 16.dp,
+                    end = 16.dp,
+                    bottom = bottomPadding + 24.dp
+                )
         ) {
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(route = NavRoute.Connection.name) {
+                    val viewState by connectionViewModel.viewState.collectAsState()
 
                     ConnectionScreen(
-                        viewState = connectionViewModel.viewState.collectAsState().value,
-                        devicesListState = connectionViewModel.deviceMapState
-                    ) { action ->
-                        connectionViewModel.onAction(action)
-                    }
+                        viewState = viewState,
+                        controllerAction = viewModel::onAction,
+                        action = connectionViewModel::onAction
+                    )
                 }
                 composable(route = NavRoute.Color.name) {
-                    ColorScreen(viewModel = viewModel)
+                    ColorScreen(onAction = viewModel::onAction)
                 }
                 composable(route = NavRoute.Visualizer.name) {
-                    VisualizerScreen(viewModel = viewModel)
+                    VisualizerScreen(onAction = viewModel::onAction)
                 }
             }
         }

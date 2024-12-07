@@ -3,14 +3,11 @@ package com.niresh23.fanlightcontroller.ui.connection
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.niresh23.fanlightcontroller.viewstate.StickActions
-import kotlinx.coroutines.flow.MutableSharedFlow
+import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -20,33 +17,33 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
     private val _viewStateFlow = MutableStateFlow(ConnectionViewState())
     val viewState = _viewStateFlow.asStateFlow()
 
-    val deviceMapState = mutableStateMapOf<String, DeviceViewState>()
-
     private val bleScannerAdapter = BleScannerAdapter(app, viewModelScope)
-
-    private val _actionFlow = MutableSharedFlow<StickActions>()
-    val actionFlow = _actionFlow.asSharedFlow()
 
     init {
         viewModelScope.launch {
-            bleScannerAdapter.scanActionFlow.collectLatest { scanAction ->
+            bleScannerAdapter.scanEventFlow.collectLatest { scanAction ->
                 when(scanAction) {
-                    is BleScannerAdapter.ScanAction.ScanResult -> {
+                    is BleScannerAdapter.ScanEvent.ScanResult -> {
                         _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
-                        scanAction.scanResults.forEach { (address, device) ->
-                            if (!deviceMapState.contains(address)) {
-                                deviceMapState[address] = DeviceViewState.Disconnected(
-                                    "Exo Light Stick",
-                                    address
-                                )
-                            }
+                        val result = scanAction.scanResults
+                        val mutableList = _viewStateFlow.value.deviceList.toMutableList()
+
+                        result.forEach { (address, device) ->
+                            _viewStateFlow.value.deviceList.firstOrNull { it.address == address } ?: mutableList.add(DeviceViewState("Exo Lighstick ver. 3", address))
                         }
+                        _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
                     }
-                    is BleScannerAdapter.ScanAction.Error -> {
+
+                    is BleScannerAdapter.ScanEvent.Error -> {
                         _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
                     }
-                    is BleScannerAdapter.ScanAction.Scanning -> {
+
+                    is BleScannerAdapter.ScanEvent.Scanning -> {
                         _viewStateFlow.value = _viewStateFlow.value.copy(scanning = true)
+                    }
+
+                    BleScannerAdapter.ScanEvent.StopScanning -> {
+                        _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
                     }
                 }
             }
@@ -56,14 +53,6 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
     fun onAction(action: ConnectionAction) {
         viewModelScope.launch {
             when(action) {
-                is ConnectionAction.Connect -> {
-                    _actionFlow.emit(StickActions.Connect(action.deviceAddress))
-                }
-
-                is ConnectionAction.Disconnect -> {
-                    _actionFlow.emit(StickActions.Disconnect(action.deviceAddress))
-                }
-
                 ConnectionAction.Scan -> {
                     if (ActivityCompat.checkSelfPermission(
                             app,
@@ -77,15 +66,29 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
                 ConnectionAction.StopScan -> {
                     bleScannerAdapter.stopScan()
                 }
-                is ConnectionAction.DeviceConnected -> {
-                    deviceMapState[action.deviceAddress] =
-                        DeviceViewState.Connected("Exo Light Stick", address = action.deviceAddress)
-                }
+            }
+        }
+    }
 
-                is ConnectionAction.DeviceDisconnected -> {
-                    deviceMapState[action.deviceAddress] =
-                        DeviceViewState.Disconnected("Exo Light Stick", address = action.deviceAddress)
-                }
+    fun onEvent(event: DeviceEvent) {
+        when(event) {
+            is DeviceEvent.Connected -> {
+                val mutableList = _viewStateFlow.value.deviceList.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(connected = true)
+                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
+            }
+            is DeviceEvent.Connecting -> {
+
+            }
+            is DeviceEvent.Disconnected -> {
+                val mutableList = _viewStateFlow.value.deviceList.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(connected = false)
+                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
+            }
+            is DeviceEvent.Disconnecting -> {
+
             }
         }
     }

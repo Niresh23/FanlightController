@@ -30,12 +30,12 @@ import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.ui.toIntHexColor
 import com.niresh23.fanlightcontroller.utils.SettingKey
-import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
+import com.niresh23.fanlightcontroller.viewmodel.ControllerAction
 import kotlinx.coroutines.flow.map
 
 @Composable
 fun ColorScreen(
-    viewModel: FanlightViewModel
+    onAction: (ControllerAction) -> Unit
 ) {
     val colorButtonsList = generateColorPlate()
     val context = LocalContext.current as Activity
@@ -49,7 +49,7 @@ fun ColorScreen(
         Text(text = stringResource(id = R.string.brightness))
         Slider(
             value = sliderPosition.value,
-            onValueChange = { viewModel.changeBrightness(it) },
+            onValueChange = { onAction.invoke(ControllerAction.ChangeBrightness(it)) },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,
                 activeTrackColor = MaterialTheme.colorScheme.secondary,
@@ -71,7 +71,7 @@ fun ColorScreen(
                             ) {
                                 return@clickable
                             }
-                            viewModel.changeColor(color.toIntHexColor())
+                            onAction.invoke(ControllerAction.ChangeColor(color.toIntHexColor()))
                         }
                         .height(50.dp)
                         .width(50.dp)

@@ -1,64 +1,89 @@
 package com.niresh23.fanlightcontroller.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.niresh23.fanlightcontroller.ble.DeviceEvent
+import com.niresh23.fanlightcontroller.ble.IBleServiceExecutor
+import com.niresh23.fanlightcontroller.storage.ISettingsLocalStorage
 
-import com.niresh23.fanlightcontroller.viewstate.DeviceConnectionState
-import com.niresh23.fanlightcontroller.viewstate.StickActions
 import kotlinx.coroutines.flow.MutableSharedFlow
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-class FanlightViewModel(private val application: Application): AndroidViewModel(application) {
+class FanlightViewModel(
+    private val settingsLocalStorage: ISettingsLocalStorage,
+    private val serviceExecutor: IBleServiceExecutor
+): ViewModel() {
+    private val _eventFlow  = MutableSharedFlow<DeviceEvent>()
+    val eventFlow = _eventFlow.asSharedFlow()
 
-    private val _connectionStateFlow = MutableStateFlow<DeviceConnectionState>(DeviceConnectionState.Disconnected)
-    val connectionStateFlow = _connectionStateFlow.asStateFlow()
-    private val _actionFlow = MutableSharedFlow<StickActions>()
-    val actionFlow = _actionFlow.asSharedFlow()
-
-    fun connecting() {
-        _connectionStateFlow.value = DeviceConnectionState.Connecting
-    }
-
-    fun connected() {
-        _connectionStateFlow.value = DeviceConnectionState.Connected
-    }
-
-    fun disconnected() {
-        _connectionStateFlow.value = DeviceConnectionState.Disconnected
-    }
-
-    fun startAudioVisualizer() {
+    init {
         viewModelScope.launch {
-            _actionFlow.emit(StickActions.StartAudioVisualizer)
+            launch {
+                settingsLocalStorage.brightnessFlow.collectLatest {
+                    serviceExecutor.changeBrightness(it)
+                }
+            }
+            launch {
+                settingsLocalStorage.frequencyFlow.collectLatest {
+                    serviceExecutor.changeVisualizerFrequency(it)
+                }
+            }
+            launch {
+                serviceExecutor.serviceEventFlow.collectLatest {
+                    _eventFlow.emit(it)
+                }
+            }
         }
     }
 
-    fun stopAudioVisualizer() {
-        viewModelScope.launch {
-            _actionFlow.emit(StickActions.StopAudioVisualizer)
-        }
+    fun onStart() {
+        serviceExecutor.onStart()
     }
 
-    fun changeColor(color: Int) {
-        viewModelScope.launch {
-            _actionFlow.emit(StickActions.ChangeColor(color))
-        }
+    fun onStop() {
+        serviceExecutor.onStop()
     }
 
-    fun changeBrightness(value: Float) {
-        viewModelScope.launch {
-            _actionFlow.emit(StickActions.ChangeBrightnessValue(value))
+    fun onAction(action: ControllerAction) {
+        when(action) {
+            is ControllerAction.Connect -> {
+                serviceExecutor.connect(action.address)
+            }
+            is ControllerAction.Disconnect -> {
+                serviceExecutor.disconnect(action.address)
+            }
+            is ControllerAction.ChangeBrightness -> {
+                viewModelScope.launch {
+                    settingsLocalStorage.setBrightness(action.value)
+                }
+            }
+            is ControllerAction.ChangeFrequency -> {
+                viewModelScope.launch {
+                    settingsLocalStorage.setFrequency(action.value)
+                }
+            }
+            is ControllerAction.ChangeColor -> {
+                serviceExecutor.changeColor(action.color)
+            }
+            ControllerAction.StartVisualizer -> {
+                serviceExecutor.startAudioVisualizer()
+            }
+            ControllerAction.StopVisualizer -> {
+                serviceExecutor.stopAudioVisualizer()
+            }
         }
     }
+}
 
-    fun changeFrequency(frequency: Float) {
-        viewModelScope.launch {
-            _actionFlow.emit(StickActions.ChangeVisualizationFrequency(frequency))
-        }
-    }
+sealed interface ControllerAction {
+    data class Connect(val address: String): ControllerAction
+    data class Disconnect(val address: String): ControllerAction
+    data object StartVisualizer: ControllerAction
+    data object StopVisualizer: ControllerAction
+    data class ChangeColor(val color: Int): ControllerAction
+    data class ChangeBrightness(val value: Float): ControllerAction
+    data class ChangeFrequency(val value: Float): ControllerAction
 }

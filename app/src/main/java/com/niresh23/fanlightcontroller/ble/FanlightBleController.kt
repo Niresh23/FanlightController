@@ -1,7 +1,6 @@
 package com.niresh23.fanlightcontroller.ble
 
 import android.Manifest
-import android.app.Service
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -28,8 +27,7 @@ class FanlightBleController(
     private val context: Context,
     private val deviceCallback: DeviceCallback,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
-    )
-{
+) {
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val adapter: BluetoothAdapter? = bluetoothManager?.adapter
     private var gattClient: BluetoothGatt? = null
@@ -46,7 +44,6 @@ class FanlightBleController(
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun connect(deviceAddress: String) {
         val device = adapter?.getRemoteDevice(deviceAddress)
-        deviceCallback.onAction(DeviceActions.Connecting(deviceAddress))
         scope.launch {
             audioVisualizer.colorSharedFlow.collectLatest {
                 colorChange(it)
@@ -165,12 +162,12 @@ class FanlightBleController(
             this@FanlightBleController.gatt = gatt
             this@FanlightBleController.messageCharacteristic = characteristic
         }
+
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
             val isSuccess = status == BluetoothGatt.GATT_SUCCESS
-            val isConnected = newState == BluetoothProfile.STATE_CONNECTED
 
-            if (isSuccess && isConnected) {
+            if (isSuccess && newState == BluetoothProfile.STATE_CONNECTED) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(
                         context,
                         Manifest.permission.BLUETOOTH_CONNECT
@@ -179,8 +176,12 @@ class FanlightBleController(
                     return
                 }
                 gatt.discoverServices()
+            } else if(isSuccess && newState == BluetoothProfile.STATE_CONNECTING) {
+                deviceCallback.onDeviceAction(DeviceEvent.Connecting(gatt.device.address))
+            } else if(isSuccess && newState == BluetoothProfile.STATE_DISCONNECTING) {
+                deviceCallback.onDeviceAction(DeviceEvent.Disconnecting(gatt.device.address))
             } else {
-                deviceCallback.onAction(DeviceActions.Disconnected(gatt.device.address))
+                deviceCallback.onDeviceAction(DeviceEvent.Disconnected(gatt.device.address))
             }
         }
 
@@ -192,7 +193,7 @@ class FanlightBleController(
                 if(service != null) {
                     messageCharacteristic = service.getCharacteristic(Constants.MESSAGE_UUID)
                     currentDevice?.let {
-                        deviceCallback.onAction(DeviceActions.Connected(discoveredGatt.device.address))
+                        deviceCallback.onDeviceAction(DeviceEvent.Connected(discoveredGatt.device.address))
                     }
                 }
             }
@@ -200,12 +201,13 @@ class FanlightBleController(
     }
 
     interface DeviceCallback {
-        fun onAction(action: DeviceActions)
+        fun onDeviceAction(action: DeviceEvent)
     }
+}
 
-    sealed interface DeviceActions {
-        data class Connecting(val address: String): DeviceActions
-        data class Connected(val address: String): DeviceActions
-        data class Disconnected(val address: String): DeviceActions
-    }
+sealed interface DeviceEvent {
+    data class Connecting(val address: String): DeviceEvent
+    data class Connected(val address: String): DeviceEvent
+    data class Disconnecting(val address: String): DeviceEvent
+    data class Disconnected(val address: String): DeviceEvent
 }

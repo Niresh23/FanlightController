@@ -9,12 +9,12 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.os.Handler
 import android.os.ParcelUuid
 import androidx.annotation.RequiresPermission
 import com.niresh23.fanlightcontroller.utils.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
@@ -30,8 +30,8 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
 
     private val adapter: BluetoothAdapter? = bluetoothManager.adapter
-    private val _scanActionFlow = MutableSharedFlow<ScanAction>()
-    val scanActionFlow = _scanActionFlow.asSharedFlow()
+    private val _scanEventFlow = MutableSharedFlow<ScanEvent>()
+    val scanEventFlow = _scanEventFlow.asSharedFlow()
 
     private var scanner: BluetoothLeScanner? = null
     private var scanCallback: DeviceScanCallback? = null
@@ -43,7 +43,7 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
         scanner?.stopScan(scanCallback)
         scanCallback = null
         coroutineScope.launch {
-            _scanActionFlow.emit(ScanAction.ScanResult(scanResults))
+            _scanEventFlow.emit(ScanEvent.StopScanning)
         }
     }
 
@@ -52,7 +52,7 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
         scanFilters = buildScanFilters()
         scanSettings = buildScanSettings()
         coroutineScope.launch {
-            _scanActionFlow.emit(ScanAction.Scanning)
+            _scanEventFlow.emit(ScanEvent.Scanning)
         }
         if (scanCallback == null) {
             scanner = adapter?.bluetoothLeScanner
@@ -61,7 +61,7 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
                 stopScan()
             }
 
-            scanCallback = DeviceScanCallback()
+            scanCallback = DeviceScanCallback(_scanEventFlow, coroutineScope)
             scanner?.startScan(scanFilters, scanSettings, scanCallback)
         }
     }
@@ -80,7 +80,10 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
             .build()
     }
 
-    private inner class DeviceScanCallback : ScanCallback() {
+    private inner class DeviceScanCallback(
+        private val flow: FlowCollector<ScanEvent>,
+        private val coroutineScope: CoroutineScope
+    ) : ScanCallback() {
         override fun onBatchScanResults(results: List<ScanResult>) {
             super.onBatchScanResults(results)
             for (item in results) {
@@ -89,7 +92,7 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
                 }
             }
             coroutineScope.launch {
-                _scanActionFlow.emit(ScanAction.ScanResult(scanResults))
+                flow.emit(ScanEvent.ScanResult(scanResults))
             }
         }
 
@@ -102,7 +105,7 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
                 scanResults[device.address] = device
             }
             coroutineScope.launch {
-                _scanActionFlow.emit(ScanAction.ScanResult(scanResults))
+                flow.emit(ScanEvent.ScanResult(scanResults))
             }
         }
 
@@ -110,14 +113,15 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
             super.onScanFailed(errorCode)
             val errorMessage = "Scan failed with error: $errorCode"
             coroutineScope.launch {
-                _scanActionFlow.emit(ScanAction.Error(errorMessage))
+                flow.emit(ScanEvent.Error(errorMessage))
             }
         }
     }
 
-    sealed interface ScanAction {
-        data object Scanning: ScanAction
-        data class ScanResult(val scanResults: Map<String, BluetoothDevice>): ScanAction
-        data class Error(val message: String): ScanAction
+    sealed interface ScanEvent {
+        data object Scanning: ScanEvent
+        data object StopScanning: ScanEvent
+        data class ScanResult(val scanResults: Map<String, BluetoothDevice>): ScanEvent
+        data class Error(val message: String): ScanEvent
     }
 }

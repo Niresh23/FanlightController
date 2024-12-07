@@ -14,63 +14,39 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import androidx.datastore.preferences.core.floatPreferencesKey
 import com.niresh23.fanlightcontroller.R
+import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import com.niresh23.fanlightcontroller.ble.FanlightBleController
-import com.niresh23.fanlightcontroller.settingsDataStore
-import com.niresh23.fanlightcontroller.utils.SettingKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
     companion object {
+        private const val NOTIFICATION_ID = 111
         const val NOTIFICATION_CHANNEL_ID = "audio_visualizer_channel_id"
         const val NOTIFICATION_CHANNEL_NAME = "audio_visualizer_notification_channel"
         const val BLUETOOTH_DEVICE_KEY = "bluetooth_device_key"
         const val COLOR_KEY = "color_key"
+        const val FREQUENCY_VALUE_KEY = "frequency_value_key"
+        const val BRIGHTNESS_VALUE_KEY = "brightness_value_key"
     }
+
     private lateinit var fanlightBleController: FanlightBleController
     private val job = SupervisorJob()
-    private val scope = CoroutineScope(Dispatchers.IO + job)
-    private val binder = ServiceBinder()
-    private val _actionFlow = MutableSharedFlow<FanlightBleController.DeviceActions>()
+    private val scope = CoroutineScope(Dispatchers.Main + job)
+    private val _actionFlow = MutableSharedFlow<DeviceEvent>()
     val actionFlow = _actionFlow.asSharedFlow()
+    private val binder = ServiceBinder()
 
     override fun onCreate() {
         super.onCreate()
         fanlightBleController = FanlightBleController(this, this)
-        scope.launch {
-            val key = floatPreferencesKey(SettingKey.BRIGHTNESS_KEY)
-            this@BluetoothControlService.settingsDataStore.data.map {
-                it[key] ?: 1f
-            }.collectLatest {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && ActivityCompat.checkSelfPermission(
-                        this@BluetoothControlService,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    return@collectLatest
-                }
-
-                fanlightBleController.setBrightness(it)
-            }
-        }
-
-        scope.launch {
-            val key = floatPreferencesKey(SettingKey.VISUALIZATION_FREQUENCY_KEY)
-            this@BluetoothControlService.settingsDataStore.data.map {
-                it[key] ?: 1f
-            }.collectLatest {
-                fanlightBleController.setFrequencyValue(it)
-            }
-        }
     }
+
     override fun onBind(p0: Intent?): IBinder {
         return binder
     }
@@ -78,7 +54,6 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when(intent?.action) {
             Actions.Connect.toString() -> {
-                startForeground()
                 val deviceAddress: String? = intent.extras?.getString(BLUETOOTH_DEVICE_KEY, "")
                 deviceAddress?.let {
                     if (ActivityCompat.checkSelfPermission(
@@ -86,6 +61,7 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
                             Manifest.permission.BLUETOOTH_CONNECT
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
+                        startForeground()
                         fanlightBleController.connect(it)
                     }
                 }
@@ -102,15 +78,32 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
                     fanlightBleController.colorChange(color)
                 }
             }
+
             Actions.StartAudioVisualizer.toString() -> {
                 fanlightBleController.startVisualizer()
                 startForeground(true)
             }
+
             Actions.StopAudioVisualizer.toString() -> {
                 fanlightBleController.stopVisualizer()
                 startForeground(false)
             }
+
+            Actions.ChangeBrightness.toString() -> {
+                val value = intent.extras?.getFloat(BRIGHTNESS_VALUE_KEY)
+                value?.let {
+                    fanlightBleController.setBrightness(it)
+                }
+            }
+
+            Actions.ChangeVisualizerFrequency.toString() -> {
+                val value = intent.extras?.getFloat(FREQUENCY_VALUE_KEY)
+                value?.let {
+                    fanlightBleController.setFrequencyValue(value)
+                }
+            }
         }
+
         return super.onStartCommand(intent, flags, startId)
     }
 
@@ -146,31 +139,17 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
                 notificationBuilder.addAction(R.drawable.graphic_eq, getString(R.string.stop_visualizer_lbl), stopAudioVisualizerPendingIntent)
             }
 
-            if (audioVisualizerEnabled) {
-                ServiceCompat.startForeground(
-                    /* service = */ this,
-                    /* id = */ 111, // Cannot be 0
-                    /* notification = */ notificationBuilder.build(),
-                    /* foregroundServiceType = */
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-                    } else {
-                        0
-                    },
-                )
-            } else {
-                ServiceCompat.startForeground(
-                    /* service = */ this,
-                    /* id = */ 111, // Cannot be 0
-                    /* notification = */ notificationBuilder.build(),
-                    /* foregroundServiceType = */
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-                    } else {
-                        0
-                    },
-                )
-            }
+            ServiceCompat.startForeground(
+                /* service = */ this,
+                /* id = */ NOTIFICATION_ID, // Cannot be 0
+                /* notification = */ notificationBuilder.build(),
+                /* foregroundServiceType = */
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    if(audioVisualizerEnabled) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                } else {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE
+                }
+            )
         } catch (e: Exception) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 && e is ForegroundServiceStartNotAllowedException
@@ -185,14 +164,16 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         Disconnect,
         ChangeColor,
         StartAudioVisualizer,
-        StopAudioVisualizer
+        StopAudioVisualizer,
+        ChangeVisualizerFrequency,
+        ChangeBrightness
     }
 
     inner class ServiceBinder: Binder() {
         fun getService() = this@BluetoothControlService
     }
 
-    override fun onAction(action: FanlightBleController.DeviceActions) {
+    override fun onDeviceAction(action: DeviceEvent) {
         scope.launch {
             _actionFlow.emit(action)
         }

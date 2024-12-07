@@ -43,13 +43,15 @@ import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.ui.SimpleAlertDialog
 import com.niresh23.fanlightcontroller.ui.extensions.startAppSettingIntent
 import com.niresh23.fanlightcontroller.utils.SettingKey
-import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
+import com.niresh23.fanlightcontroller.viewmodel.ControllerAction
 import kotlinx.coroutines.flow.map
 
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun VisualizerScreen(viewModel: FanlightViewModel) {
+fun VisualizerScreen(
+    onAction: (ControllerAction) -> Unit
+) {
     val context = LocalContext.current as Activity
     var showWarningDialog by remember { mutableStateOf(false) }
     val sliderPosition = context.settingsDataStore.data.map {
@@ -61,22 +63,18 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if(isGranted) {
-            viewModel.startAudioVisualizer()
+            onAction.invoke(ControllerAction.StartVisualizer)
         } else {
             showWarningDialog = true
         }
     }
 
-
     if (showWarningDialog) {
         SimpleAlertDialog(
             onDismissRequest = { showWarningDialog = false },
             onConfirmation = {
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                val uri = Uri.fromParts("package", context.packageName, null)
-                intent.data = uri
-                startActivity(context, intent, null)
                 showWarningDialog = false
+                launcher.launch(Manifest.permission.RECORD_AUDIO)
             },
             dialogTitle = stringResource(id = R.string.warning_dialog_title),
             dialogText = {
@@ -106,7 +104,7 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
         Text(text = stringResource(id = R.string.frequency))
         Slider(
             value = sliderPosition.value,
-            onValueChange = { viewModel.changeFrequency(it) },
+            onValueChange = { onAction.invoke(ControllerAction.ChangeFrequency(it)) },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,
                 activeTrackColor = MaterialTheme.colorScheme.secondary,
@@ -114,10 +112,11 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
             ),
             valueRange = 1f..20f
         )
+        Spacer(modifier = Modifier.weight(1f))
         Row {
             Button(onClick = {
                 if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                    viewModel.startAudioVisualizer()
+                    onAction.invoke(ControllerAction.StartVisualizer)
                 } else if(recordAudioPermission.status.shouldShowRationale) {
                     showWarningDialog = true
                 } else {
@@ -130,7 +129,7 @@ fun VisualizerScreen(viewModel: FanlightViewModel) {
                 .fillMaxWidth()
                 .weight(1f))
             Button(onClick = {
-                viewModel.stopAudioVisualizer()
+                onAction.invoke(ControllerAction.StopVisualizer)
             }) {
                 Text(stringResource(id = R.string.stop_visualizer_lbl))
             }
