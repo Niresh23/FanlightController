@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bluetooth_permission_btn_description">Set up bluetooth permission button</string>
+    <string name="location_permission_btn_description">Set up location permission button</string>
+</resources>
