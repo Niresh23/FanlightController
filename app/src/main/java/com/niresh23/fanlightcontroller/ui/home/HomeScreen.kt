@@ -100,10 +100,20 @@ fun HomeScreen(
                     )
                 }
                 composable(route = NavRoute.Color.name) {
-                    ColorScreen(onAction = viewModel::onAction)
+                    val viewState by viewModel.colorViewStateFlow.collectAsState()
+
+                    ColorScreen(
+                        viewState = viewState,
+                        onAction = viewModel::onAction
+                    )
                 }
                 composable(route = NavRoute.Visualizer.name) {
-                    VisualizerScreen(onAction = viewModel::onAction)
+                    val viewState by viewModel.visualizerViewStateFlow.collectAsState()
+
+                    VisualizerScreen(
+                        viewState = viewState,
+                        onAction = viewModel::onAction
+                    )
                 }
             }
         }

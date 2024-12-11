@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -18,37 +19,29 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
-import androidx.datastore.preferences.core.floatPreferencesKey
 import com.niresh23.fanlightcontroller.R
-import com.niresh23.fanlightcontroller.settingsDataStore
 import com.niresh23.fanlightcontroller.ui.toIntHexColor
-import com.niresh23.fanlightcontroller.utils.SettingKey
 import com.niresh23.fanlightcontroller.viewmodel.ControllerAction
-import kotlinx.coroutines.flow.map
 
 @Composable
 fun ColorScreen(
+    viewState: ColorViewState,
     onAction: (ControllerAction) -> Unit
 ) {
     val colorButtonsList = generateColorPlate()
     val context = LocalContext.current as Activity
 
-    val sliderPosition = context.settingsDataStore.data.map {
-        val key = floatPreferencesKey(SettingKey.BRIGHTNESS_KEY)
-        it[key] ?: 1f
-    }.collectAsState(initial = 1f)
-
     Column {
         Text(text = stringResource(id = R.string.brightness))
         Slider(
-            value = sliderPosition.value,
+            modifier = Modifier.padding(horizontal = 16.dp),
+            value = viewState.brightness,
             onValueChange = { onAction.invoke(ControllerAction.ChangeBrightness(it)) },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.secondary,

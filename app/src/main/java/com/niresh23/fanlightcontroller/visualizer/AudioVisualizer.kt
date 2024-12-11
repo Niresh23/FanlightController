@@ -46,7 +46,7 @@ class AudioVisualizer {
 
     fun setCaptureRateDivider(divider: Float) {
         visualizer?.enabled = false
-        captureRate = (Visualizer.getMaxCaptureRate() / divider).toInt()
+        captureRate = (Visualizer.getMaxCaptureRate() * divider).toInt()
         visualizer?.setDataCaptureListener(onDataCaptureListener, captureRate, false, true)
         visualizer?.enabled = true
     }

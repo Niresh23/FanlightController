@@ -5,13 +5,21 @@ import androidx.lifecycle.viewModelScope
 import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import com.niresh23.fanlightcontroller.ble.IBleServiceExecutor
 import com.niresh23.fanlightcontroller.storage.ISettingsLocalStorage
+import com.niresh23.fanlightcontroller.ui.audiovisualizer.VisualizerViewState
+import com.niresh23.fanlightcontroller.ui.color.ColorViewState
+import kotlinx.coroutines.FlowPreview
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
+@OptIn(FlowPreview::class)
 class FanlightViewModel(
     private val settingsLocalStorage: ISettingsLocalStorage,
     private val serviceExecutor: IBleServiceExecutor
@@ -19,21 +27,46 @@ class FanlightViewModel(
     private val _eventFlow  = MutableSharedFlow<DeviceEvent>()
     val eventFlow = _eventFlow.asSharedFlow()
 
+    private val _visualizerViewStateFlow = MutableStateFlow(VisualizerViewState(1f))
+    val visualizerViewStateFlow = _visualizerViewStateFlow.asStateFlow()
+
+    private val _colorViewStateFlow = MutableStateFlow(ColorViewState())
+    val colorViewStateFlow = _colorViewStateFlow.asStateFlow()
+
+    private val _brightnessValueFlow = MutableSharedFlow<Float>()
+    private val _frequencyChangeFlow = MutableSharedFlow<Float>()
+
     init {
         viewModelScope.launch {
             launch {
                 settingsLocalStorage.brightnessFlow.collectLatest {
-                    serviceExecutor.changeBrightness(it)
+                    _brightnessValueFlow.emit(it)
                 }
             }
             launch {
                 settingsLocalStorage.frequencyFlow.collectLatest {
-                    serviceExecutor.changeVisualizerFrequency(it)
+                    _frequencyChangeFlow.emit(it)
                 }
             }
             launch {
                 serviceExecutor.serviceEventFlow.collectLatest {
                     _eventFlow.emit(it)
+                }
+            }
+            launch {
+                _brightnessValueFlow.onEach { brightness ->
+                    _colorViewStateFlow.value = _colorViewStateFlow.value.copy(brightness = brightness)
+                }.debounce(50).collectLatest { brightness ->
+                    settingsLocalStorage.setBrightness(brightness)
+                    serviceExecutor.changeBrightness(brightness)
+                }
+            }
+            launch {
+                _frequencyChangeFlow.onEach { frequency ->
+                    _visualizerViewStateFlow.value = _visualizerViewStateFlow.value.copy(frequency = frequency)
+                }.debounce(50).collectLatest { frequency ->
+                    settingsLocalStorage.setFrequency(frequency)
+                    serviceExecutor.changeVisualizerFrequency(frequency)
                 }
             }
         }
@@ -57,7 +90,7 @@ class FanlightViewModel(
             }
             is ControllerAction.ChangeBrightness -> {
                 viewModelScope.launch {
-                    settingsLocalStorage.setBrightness(action.value)
+                    _brightnessValueFlow.emit(action.value)
                 }
             }
             is ControllerAction.ChangeFrequency -> {
