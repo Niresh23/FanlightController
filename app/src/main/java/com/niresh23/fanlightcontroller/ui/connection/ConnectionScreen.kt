@@ -5,19 +5,29 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Battery0Bar
+import androidx.compose.material.icons.filled.Battery1Bar
+import androidx.compose.material.icons.filled.Battery2Bar
+import androidx.compose.material.icons.filled.Battery3Bar
+import androidx.compose.material.icons.filled.Battery5Bar
+import androidx.compose.material.icons.filled.Battery6Bar
+import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -34,10 +44,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.app.ActivityCompat
 import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.ui.extensions.getActivity
@@ -116,15 +130,10 @@ fun ConnectionScreen(
                 .fillMaxWidth()
                 .weight(1f)
         )
-
-        Spacer(
-            Modifier
-                .fillMaxHeight()
-                .weight(1f)
-        )
         Row(
             modifier = Modifier
-                .fillMaxWidth().safeContentPadding(),
+                .fillMaxWidth()
+                .safeContentPadding(),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.Bottom
         ) {
@@ -226,6 +235,34 @@ fun ConnectionScreen(
             }
         )
     }
+
+    if (viewState.error != null) {
+        AlertDialog(
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+            onDismissRequest = {  },
+            confirmButton = {
+                TextButton(onClick = {
+                    action.invoke(ConnectionAction.StopScan)
+                }) {
+                    Text(text = "Ok")
+                }
+            },
+            title = {
+                Text(
+                    text = stringResource(id = R.string.warning_dialog_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = viewState.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -236,7 +273,7 @@ fun BluetoothDeviceList(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
-        modifier = modifier,
+        modifier = modifier.padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
@@ -248,39 +285,118 @@ fun BluetoothDeviceList(
 
         items(scannedDevices) { device ->
             Card {
-                Column(modifier = Modifier.padding(8.dp)) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Row(
-                        modifier = Modifier
-                            .height(32.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = device.name
+                            text = device.name,
+                            style = MaterialTheme.typography.bodyMedium
                         )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = device.address
+                        Spacer(
+                            modifier = Modifier.weight(1f)
                         )
+                        if (device.status == DeviceConnectionStatus.CONNECTED) {
+                            Battery(level = device.batteryLevel)
+                        }
                     }
-                    OutlinedButton(
-                        modifier = Modifier
-                            .wrapContentSize()
-                            .align(Alignment.End),
-                        onClick = {
-                            if (device.connected) {
-                                onDisconnect.invoke(device.address)
-                            } else {
-                                onConnect.invoke(device.address)
-                            }
-                        }) {
 
-                        Text(
-                            text = if (device.connected) "Disconnect" else "Connect"
+                    Row {
+                        Image(
+                            modifier = Modifier
+                                .align(Alignment.CenterVertically)
+                                .width(24.dp)
+                                .height(24.dp),
+                            painter = painterResource(id = R.drawable.logoe_exo),
+                            contentDescription = "",
+                            colorFilter = ColorFilter.tint(
+                                when(device.status) {
+                                    DeviceConnectionStatus.CONNECTED -> {
+                                        Color.Green
+                                    }
+                                    DeviceConnectionStatus.DISCONNECTED -> {
+                                        Color.Red
+                                    }
+                                    else -> {
+                                        Color.Yellow
+                                    }
+                                }
+                            )
                         )
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        OutlinedButton(
+                            modifier = Modifier
+                                .wrapContentSize(),
+                            onClick = {
+                                when(device.status) {
+                                    DeviceConnectionStatus.DISCONNECTED -> {
+                                        onConnect.invoke(device.address)
+                                    }
+                                    DeviceConnectionStatus.CONNECTED -> {
+                                        onDisconnect.invoke(device.address)
+                                    }
+                                    else -> {}
+                                }
+                            }) {
+                            Text(
+                                text = if (device.status == DeviceConnectionStatus.CONNECTED) "Disconnect" else "Connect"
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun Battery(modifier: Modifier = Modifier, level: Int) {
+    Row {
+        Image(
+            imageVector = when(level) {
+                in 0..5 -> {
+                    Icons.Filled.Battery0Bar
+                }
+                in 5..20 -> {
+                    Icons.Filled.Battery1Bar
+                }
+                in 20..35 -> {
+                    Icons.Filled.Battery2Bar
+                }
+                in 35..50 -> {
+                    Icons.Filled.Battery3Bar
+                }
+                in 50..65 -> {
+                    Icons.Filled.Battery5Bar
+                }
+                in 65..90 -> {
+                    Icons.Filled.Battery6Bar
+                }
+                in 95..100 -> {
+                    Icons.Filled.BatteryFull
+                }
+                else -> {
+                    Icons.Filled.BatteryAlert
+                }
+            },
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(color = when(level) {
+                in 0..15 -> Color.Red
+                in 15..40 -> Color.Yellow
+                in 40..100 -> Color.Green
+                else -> Color.DarkGray
+            })
+        )
+        Text(
+            modifier = Modifier.align(Alignment.CenterVertically),
+            text = "$level%",
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 
@@ -291,8 +407,9 @@ fun ConnectionScreenPreview() {
         ConnectionScreen(
             viewState = ConnectionViewState(
                 deviceList = listOf(
-                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18"),
-                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:19")
+                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", status = DeviceConnectionStatus.CONNECTED, batteryLevel = 100),
+                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", status = DeviceConnectionStatus.CONNECTING, batteryLevel = 35),
+                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:19", batteryLevel = 5)
                 ),
                 scanning = true
             ), {} , {})

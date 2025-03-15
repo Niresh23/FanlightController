@@ -18,6 +18,7 @@ class AudioVisualizer {
     private val _colorSharedFlow = MutableSharedFlow<Int>()
     val colorSharedFlow = _colorSharedFlow.asSharedFlow()
     private var captureRate: Int = Visualizer.getMaxCaptureRate()
+    private var divider = 1f
 
     private val onDataCaptureListener = object : Visualizer.OnDataCaptureListener {
         override fun onWaveFormDataCapture(
@@ -45,6 +46,8 @@ class AudioVisualizer {
     }
 
     fun setCaptureRateDivider(divider: Float) {
+        if (this.divider == divider) return
+        this.divider = divider
         visualizer?.enabled = false
         captureRate = (Visualizer.getMaxCaptureRate() * divider).toInt()
         visualizer?.setDataCaptureListener(onDataCaptureListener, captureRate, false, true)

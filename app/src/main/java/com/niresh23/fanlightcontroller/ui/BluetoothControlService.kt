@@ -19,12 +19,21 @@ import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import com.niresh23.fanlightcontroller.ble.FanlightBleController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.launch
 
-class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
+@OptIn(ExperimentalCoroutinesApi::class)
+class BluetoothControlService: Service() {
     companion object {
         private const val NOTIFICATION_ID = 111
         const val NOTIFICATION_CHANNEL_ID = "audio_visualizer_channel_id"
@@ -35,71 +44,141 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         const val BRIGHTNESS_VALUE_KEY = "brightness_value_key"
     }
 
-    private lateinit var fanlightBleController: FanlightBleController
+    private val controllerMap = HashMap<String, FanlightBleController>()
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.Main + job)
-    private val _actionFlow = MutableSharedFlow<DeviceEvent>()
-    val actionFlow = _actionFlow.asSharedFlow()
+    private val _actionFlow = MutableSharedFlow<Flow<DeviceEvent>>()
+    val actionFlow: Flow<DeviceEvent> = _actionFlow.asSharedFlow().flattenConcat()
     private val binder = ServiceBinder()
+
+    private val _brightnessStateFlow = MutableStateFlow(1f)
+    private val _frequencyStateFlow = MutableStateFlow(1f)
+    private val _colorStateFlow = MutableStateFlow(0)
+
+    init {
+        scope.launch {
+            combine(_colorStateFlow, _frequencyStateFlow, _brightnessStateFlow) { color, frequency, brightness ->
+                ColorState(color = color, frequency = frequency, brightness = brightness)
+            }.collect { colorState ->
+                controllerMap.values.forEach {
+                    it.stateChanged(colorState.color, colorState.brightness, colorState.frequency)
+                }
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
-        fanlightBleController = FanlightBleController(this, this)
+
+        scope.launch {
+            actionFlow.collectLatest { event ->
+                when (event) {
+                    is DeviceEvent.Disconnected -> {
+                        controllerMap.values.forEach {
+                            if (it.isConnected) {
+                                return@collectLatest
+                            }
+                        }
+
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                    }
+
+                    is DeviceEvent.Connected -> {
+                        controllerMap.values.forEach {
+                            if (_colorStateFlow.value != 0) {
+                                scope.launch {
+                                    delay(200L)
+                                    it.stateChanged(
+                                        _colorStateFlow.value,
+                                        _brightnessStateFlow.value,
+                                        _frequencyStateFlow.value
+                                    )
+                                }
+                            }
+                        }
+                        startForeground()
+                    }
+
+                    else -> {}
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        controllerMap.values.forEach { it.release() }
+        controllerMap.clear()
+        scope.cancel()
+        super.onDestroy()
     }
 
     override fun onBind(p0: Intent?): IBinder {
         return binder
     }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        controllerMap.values.forEach {
+            if (it.isConnected) {
+                return@forEach
+            }
+        }
+
+        return super.onUnbind(intent)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when(intent?.action) {
             Actions.Connect.toString() -> {
-                val deviceAddress: String? = intent.extras?.getString(BLUETOOTH_DEVICE_KEY, "")
+                val deviceAddress: String? = intent.extras?.getString(BLUETOOTH_DEVICE_KEY)
                 deviceAddress?.let {
-                    if (ActivityCompat.checkSelfPermission(
-                            this,
-                            Manifest.permission.BLUETOOTH_CONNECT
-                        ) == PackageManager.PERMISSION_GRANTED
-                    ) {
-                        startForeground()
-                        fanlightBleController.connect(it)
-                    }
+                    handleConnect(address = it)
                 }
             }
 
             Actions.Disconnect.toString() -> {
-                fanlightBleController.disconnect()
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                val deviceAddress: String? = intent.extras?.getString(BLUETOOTH_DEVICE_KEY)
+
+                deviceAddress?.let {
+                    controllerMap[it]?.disconnect()
+                } ?: controllerMap.values.forEach { controller ->
+                    controller.disconnect()
+                }
             }
 
             Actions.ChangeColor.toString() -> {
                 val color = intent.extras?.getInt(COLOR_KEY)
                 color?.let {
-                    fanlightBleController.colorChange(color)
+                    _colorStateFlow.tryEmit(color)
                 }
             }
 
             Actions.StartAudioVisualizer.toString() -> {
-                fanlightBleController.startVisualizer()
+                controllerMap.values.forEach { controller ->
+                    controller.startVisualizer()
+                }
+
                 startForeground(true)
             }
 
             Actions.StopAudioVisualizer.toString() -> {
-                fanlightBleController.stopVisualizer()
+                controllerMap.values.forEach { controller ->
+                    controller.stopVisualizer()
+                }
+
                 startForeground(false)
             }
 
             Actions.ChangeBrightness.toString() -> {
                 val value = intent.extras?.getFloat(BRIGHTNESS_VALUE_KEY)
                 value?.let {
-                    fanlightBleController.setBrightness(it)
+                    _brightnessStateFlow.tryEmit(it)
                 }
             }
 
             Actions.ChangeVisualizerFrequency.toString() -> {
                 val value = intent.extras?.getFloat(FREQUENCY_VALUE_KEY)
                 value?.let {
-                    fanlightBleController.setFrequencyValue(value)
+                    _frequencyStateFlow.tryEmit(it)
                 }
             }
         }
@@ -159,6 +238,24 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         }
     }
 
+    private fun handleConnect(address: String) {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            controllerMap.getOrPut(address) {
+                val controller = FanlightBleController(context = this@BluetoothControlService, scope)
+
+                scope.launch {
+                    _actionFlow.emit(controller.bleDeviceEventFlow)
+                }
+
+                controller
+            }.connect(address)
+        }
+    }
+
     enum class Actions {
         Connect,
         Disconnect,
@@ -173,9 +270,9 @@ class BluetoothControlService: Service(), FanlightBleController.DeviceCallback {
         fun getService() = this@BluetoothControlService
     }
 
-    override fun onDeviceAction(action: DeviceEvent) {
-        scope.launch {
-            _actionFlow.emit(action)
-        }
-    }
+    data class ColorState(
+        val color: Int,
+        val brightness: Float,
+        val frequency: Float
+    )
 }

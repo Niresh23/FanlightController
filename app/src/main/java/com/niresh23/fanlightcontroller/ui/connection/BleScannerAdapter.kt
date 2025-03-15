@@ -51,18 +51,22 @@ class BleScannerAdapter(context: Context, private val coroutineScope: CoroutineS
     fun startScan() {
         scanFilters = buildScanFilters()
         scanSettings = buildScanSettings()
-        coroutineScope.launch {
-            _scanEventFlow.emit(ScanEvent.Scanning)
-        }
         if (scanCallback == null) {
             scanner = adapter?.bluetoothLeScanner
-            coroutineScope.launch {
-                delay(SCAN_PERIOD)
-                stopScan()
+            scanCallback = DeviceScanCallback(_scanEventFlow, coroutineScope)
+            if (scanner == null) {
+                coroutineScope.launch {
+                    _scanEventFlow.emit(ScanEvent.Error("Turn on Bluetooth connection"))
+                }
+            } else {
+                coroutineScope.launch {
+                    _scanEventFlow.emit(ScanEvent.Scanning)
+                    delay(SCAN_PERIOD)
+                    stopScan()
+                }
+                scanner?.startScan(scanFilters, scanSettings, scanCallback)
             }
 
-            scanCallback = DeviceScanCallback(_scanEventFlow, coroutineScope)
-            scanner?.startScan(scanFilters, scanSettings, scanCallback)
         }
     }
 

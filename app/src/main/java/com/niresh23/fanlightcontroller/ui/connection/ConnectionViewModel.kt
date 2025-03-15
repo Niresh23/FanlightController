@@ -35,7 +35,7 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
                     }
 
                     is BleScannerAdapter.ScanEvent.Error -> {
-                        _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
+                        _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false, error = scanAction.message)
                     }
 
                     is BleScannerAdapter.ScanEvent.Scanning -> {
@@ -43,7 +43,7 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
                     }
 
                     BleScannerAdapter.ScanEvent.StopScanning -> {
-                        _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
+                        _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false, error = null)
                     }
                 }
             }
@@ -75,20 +75,36 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
             is DeviceEvent.Connected -> {
                 val mutableList = _viewStateFlow.value.deviceList.toMutableList()
                 val index = mutableList.indexOfFirst { it.address == event.address }
-                mutableList[index] = mutableList[index].copy(connected = true)
+                mutableList[index] = mutableList[index].copy(status = DeviceConnectionStatus.CONNECTED)
                 _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
             }
-            is DeviceEvent.Connecting -> {
 
+            is DeviceEvent.Connecting -> {
+                val mutableList = _viewStateFlow.value.deviceList.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(status = DeviceConnectionStatus.CONNECTING)
+                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
             }
+
             is DeviceEvent.Disconnected -> {
                 val mutableList = _viewStateFlow.value.deviceList.toMutableList()
                 val index = mutableList.indexOfFirst { it.address == event.address }
-                mutableList[index] = mutableList[index].copy(connected = false)
+                mutableList[index] = mutableList[index].copy(status = DeviceConnectionStatus.DISCONNECTED)
                 _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
             }
-            is DeviceEvent.Disconnecting -> {
 
+            is DeviceEvent.Disconnecting -> {
+                val mutableList = _viewStateFlow.value.deviceList.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(status = DeviceConnectionStatus.DISCONNECTING)
+                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
+            }
+
+            is DeviceEvent.BatteryLevel -> {
+                val mutableList = _viewStateFlow.value.deviceList.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(batteryLevel = event.level)
+                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
             }
         }
     }
