@@ -25,20 +25,11 @@ import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
-    private val connectionViewModel: ConnectionViewModel by viewModels()
+    private val connectionViewModel: ConnectionViewModel by viewModel()
     private val fanlightViewModel: FanlightViewModel by viewModel()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    fanlightViewModel.eventFlow.collectLatest {
-                        connectionViewModel.onEvent(it)
-                    }
-                }
-            }
-        }
 
         setContent {
             FanlightControllerTheme {
@@ -54,6 +45,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         fanlightViewModel.onStart()
+        connectionViewModel.onCreate()
         Dexter.withContext(this).withPermission(
             Manifest.permission.POST_NOTIFICATIONS
         ).withListener(object : PermissionListener {

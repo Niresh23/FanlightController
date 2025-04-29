@@ -30,15 +30,9 @@ class FanlightBleController(
     val isConnected: Boolean
         get() = bleAdapter.isConnected
 
-    private val audioVisualizer = AudioVisualizer()
+    val audioVisualizer = AudioVisualizer()
 
     init {
-        scope.launch {
-            audioVisualizer.colorSharedFlow.collectLatest {
-                colorChange(it)
-            }
-        }
-
         scope.launch {
             ticker(1000, context = coroutineContext).receiveAsFlow().collectLatest {
                 bleAdapter.requestBatteryLevel()

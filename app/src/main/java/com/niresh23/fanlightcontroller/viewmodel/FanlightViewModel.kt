@@ -24,9 +24,6 @@ class FanlightViewModel(
     private val settingsLocalStorage: ISettingsLocalStorage,
     private val serviceExecutor: IBleServiceExecutor
 ): ViewModel() {
-    private val _eventFlow  = MutableSharedFlow<DeviceEvent>()
-    val eventFlow = _eventFlow.asSharedFlow()
-
     private val _visualizerViewStateFlow = MutableStateFlow(VisualizerViewState(1f))
     val visualizerViewStateFlow = _visualizerViewStateFlow.asStateFlow()
 
@@ -46,11 +43,6 @@ class FanlightViewModel(
             launch {
                 settingsLocalStorage.frequencyFlow.collectLatest {
                     _frequencyChangeFlow.emit(it)
-                }
-            }
-            launch {
-                serviceExecutor.serviceEventFlow.collectLatest {
-                    _eventFlow.emit(it)
                 }
             }
             launch {

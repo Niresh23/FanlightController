@@ -1,18 +1,22 @@
 package com.niresh23.fanlightcontroller.ui.connection
 
 import android.Manifest
-import android.app.Application
+import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.niresh23.fanlightcontroller.ble.DeviceEvent
+import com.niresh23.fanlightcontroller.ble.IBleServiceExecutor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
-class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) {
+class ConnectionViewModel(
+    private val serviceExecutor: IBleServiceExecutor,
+    private val app: Context
+) : ViewModel() {
 
     private val _viewStateFlow = MutableStateFlow(ConnectionViewState())
     val viewState = _viewStateFlow.asStateFlow()
@@ -24,14 +28,8 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
             bleScannerAdapter.scanEventFlow.collectLatest { scanAction ->
                 when(scanAction) {
                     is BleScannerAdapter.ScanEvent.ScanResult -> {
+                        serviceExecutor.addDevices(scanAction.scanResults.keys)
                         _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
-                        val result = scanAction.scanResults
-                        val mutableList = _viewStateFlow.value.deviceList.toMutableList()
-
-                        result.forEach { (address, device) ->
-                            _viewStateFlow.value.deviceList.firstOrNull { it.address == address } ?: mutableList.add(DeviceViewState("Exo Lighstick ver. 3", address))
-                        }
-                        _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = mutableList)
                     }
 
                     is BleScannerAdapter.ScanEvent.Error -> {
@@ -46,6 +44,15 @@ class ConnectionViewModel(private val app: Application) : AndroidViewModel(app) 
                         _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false, error = null)
                     }
                 }
+            }
+        }
+    }
+
+    fun onCreate() {
+        viewModelScope.launch {
+            serviceExecutor.devicesViewState.collect {
+                println("NRES -- devicesFromService in viewModel = $it")
+                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = it)
             }
         }
     }

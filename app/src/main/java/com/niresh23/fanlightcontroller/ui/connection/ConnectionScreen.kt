@@ -75,6 +75,7 @@ fun ConnectionScreen(
             showScanAlertDialog = true
         }
     }
+
     var connectToDevice: (() -> Unit)? = null
     var showConnectAlertDialog by remember { mutableStateOf(false) }
     val requestConnectPermissionLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -119,7 +120,7 @@ fun ConnectionScreen(
                         connectToDevice = {
                             controllerAction.invoke(ControllerAction.Connect(address))
                         }
-                        requestScanPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                        requestConnectPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                     }
                 }
             },

@@ -1,9 +1,10 @@
 package com.niresh23.fanlightcontroller.ble
 
+import com.niresh23.fanlightcontroller.ui.connection.DeviceViewState
 import kotlinx.coroutines.flow.Flow
 
 interface IBleServiceExecutor {
-    val serviceEventFlow: Flow<DeviceEvent>
+    val devicesViewState: Flow<List<DeviceViewState>>
 
     fun onStart()
 
@@ -22,4 +23,6 @@ interface IBleServiceExecutor {
     fun changeVisualizerFrequency(value: Float)
 
     fun changeBrightness(value: Float)
+
+    fun addDevices(devices: Collection<String>)
 }

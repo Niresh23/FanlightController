@@ -6,25 +6,26 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.niresh23.fanlightcontroller.ui.BluetoothControlService
+import com.niresh23.fanlightcontroller.ui.connection.DeviceViewState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-
 
 class BleServiceExecutor(
     private val context: Context,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main
 ): IBleServiceExecutor {
-    private val _serviceEvent = MutableSharedFlow<DeviceEvent>()
-    override val serviceEventFlow
-        get() = _serviceEvent
+    override val devicesViewState: Flow<List<DeviceViewState>>
+        get() = _devicesViewState
 
-    private val coroutineScope = CoroutineScope(coroutineDispatcher + Job())
+    private val _devicesViewState = MutableSharedFlow<List<DeviceViewState>>()
+    private val coroutineScope = CoroutineScope(coroutineDispatcher + SupervisorJob())
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -33,8 +34,10 @@ class BleServiceExecutor(
             val bleService = binder.getService()
 
             coroutineScope.launch {
-                bleService.actionFlow.collectLatest { action ->
-                    _serviceEvent.emit(action)
+                bleService.deviceViewStateFlow.collectLatest {
+                    println("NRES -- devices from service in executor = $it")
+
+                    _devicesViewState.emit(it)
                 }
             }
         }
@@ -117,6 +120,14 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.ChangeBrightness.toString()
             it.putExtra(BluetoothControlService.BRIGHTNESS_VALUE_KEY, value)
+            context.startService(it)
+        }
+    }
+
+    override fun addDevices(devices: Collection<String>) {
+        Intent(context, BluetoothControlService::class.java).also {
+            it.action = BluetoothControlService.Actions.AddDevices.toString()
+            it.putExtra(BluetoothControlService.ADD_DEVICES_KEY, devices.toTypedArray())
             context.startService(it)
         }
     }
