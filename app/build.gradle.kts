@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId = "com.niresh23.fanlightcontroller"
         minSdk = 28
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 4
         versionName = "1.0.2"
 
