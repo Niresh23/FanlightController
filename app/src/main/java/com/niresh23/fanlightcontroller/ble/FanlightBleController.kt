@@ -1,7 +1,6 @@
 package com.niresh23.fanlightcontroller.ble
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Context
 import androidx.annotation.RequiresPermission
 import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
@@ -56,10 +55,6 @@ class FanlightBleController(
         audioVisualizer.init(0)
     }
 
-    fun setFrequencyValue(value: Float) {
-        audioVisualizer.setCaptureRateDivider(value)
-    }
-
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun setBrightness(value: Float) {
         if (value in 0f.. 1f) {
@@ -86,9 +81,15 @@ class FanlightBleController(
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    fun stateChanged(color: Int, brightness: Float, frequency: Float) {
+    fun stateChanged(
+        color: Int,
+        brightness: Float,
+        frequency: Float,
+        param: AudioVisualizer.Param
+    ) {
         this.brightness = brightness
         audioVisualizer.setCaptureRateDivider(frequency)
+        audioVisualizer.setVisualizerParam(param)
         colorChange(color)
     }
 

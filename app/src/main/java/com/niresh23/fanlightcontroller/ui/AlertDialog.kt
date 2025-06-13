@@ -32,7 +32,7 @@ fun SimpleAlertDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    onConfirmation()
+                    onConfirmation.invoke()
                 }
             ) {
                 Text(stringResource(id = R.string.dialog_confirm_btn_lbl))

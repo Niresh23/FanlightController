@@ -8,10 +8,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlin.math.abs
 import kotlin.math.absoluteValue
+import kotlin.math.atan2
+import kotlin.math.hypot
 import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 
 class AudioVisualizer {
     private var visualizer: Visualizer? = null
@@ -19,6 +24,7 @@ class AudioVisualizer {
     val colorSharedFlow = _colorSharedFlow.asSharedFlow()
     private var captureRate: Int = Visualizer.getMaxCaptureRate()
     private var divider = 1f
+    private var param = Param()
 
     private val onDataCaptureListener = object : Visualizer.OnDataCaptureListener {
         override fun onWaveFormDataCapture(
@@ -30,7 +36,9 @@ class AudioVisualizer {
         override fun onFftDataCapture(visualizer: Visualizer?, fft: ByteArray?, samplingRate: Int) {
             fft ?: return
 
-            val color = convertFFTtoColor(fft)
+            val color =
+                if (param.mode == Mode.MODERN) convertFFTtoIntRGBColor(fft)
+                else convertFFTtoColor(fft)
             CoroutineScope(Dispatchers.IO).launch {
                 _colorSharedFlow.emit(color)
             }
@@ -52,6 +60,10 @@ class AudioVisualizer {
         captureRate = (Visualizer.getMaxCaptureRate() * divider).toInt()
         visualizer?.setDataCaptureListener(onDataCaptureListener, captureRate, false, true)
         visualizer?.enabled = true
+    }
+
+    fun setVisualizerParam(param: Param) {
+        this.param = param
     }
 
     fun release() {
@@ -85,30 +97,6 @@ class AudioVisualizer {
         return redHex or greenHex or blueHex
     }
 
-//    private fun convertFFTtoMagnitudes(fft: ByteArray): FloatArray {
-//        if (fft.isEmpty()) {
-//            return floatArrayOf()
-//        }
-//
-//        val n: Int = fft.size / FFT_NEEDED_PORTION
-//        val curMagnitudes = FloatArray(n / 2)
-//
-//        var prevMagnitudes = magnitudes
-//        if (prevMagnitudes.isEmpty()) {
-//            prevMagnitudes = FloatArray(n)
-//        }
-//
-//        for (k in 0 until n / 2 - 1) {
-//            val index = k * FFT_STEP + FFT_OFFSET
-//            val real: Byte = fft[index]
-//            val imaginary: Byte = fft[index + 1]
-//
-//            val curMagnitude = calculateMagnitude(real.toFloat(), imaginary.toFloat())
-//            curMagnitudes[k] = curMagnitude + (prevMagnitudes[k] - curMagnitude) * smoothingFactor
-//        }
-//        return curMagnitudes.map { it / maxMagnitude }.toFloatArray()
-//    }
-
     private fun convertFFTtoMagnitudes(fft: ByteArray): FloatArray {
         if (fft.isEmpty()) {
             return floatArrayOf()
@@ -128,11 +116,75 @@ class AudioVisualizer {
             val imaginary: Byte = fft[index + 1]
 
             val curMagnitude = calculateMagnitude(real.toFloat(), imaginary.toFloat())
-            curMagnitudes[k] = curMagnitude
+            curMagnitudes[k] = curMagnitude + (prevMagnitudes[k] - curMagnitude) * smoothingFactor
         }
-
         return curMagnitudes.map { it / maxMagnitude }.toFloatArray()
     }
+
+    private fun convertFFTtoIntRGBColor(fft: ByteArray): Int {
+        val n: Int = fft.size
+        val magnitudes = FloatArray(n / 2 + 1)
+        val phases = FloatArray(n / 2 + 1)
+        magnitudes[0] = abs(fft[0].toInt()).toFloat() // DC
+        magnitudes[n / 2] = abs(fft[1].toInt()).toFloat() // Nyquist
+        phases[0] = 0f.also { phases[n / 2] = it }
+
+        for (k in 1 until n / 2) {
+            val i = k * 2
+            magnitudes[k] = hypot(fft[i].toDouble(), fft[i + 1].toDouble()).toFloat()
+            phases[k] = atan2(fft[i + 1].toDouble(), fft[i].toDouble()).toFloat()
+        }
+
+        return fftToRGB(magnitudes, phases, param.bassAmplifier, param.midAmplifier, param.trembleAmplifier)
+    }
+
+    private fun fftToRGB(magnitudes: FloatArray,
+                         phases: FloatArray,
+                         bassAmplifier: Float,
+                         midAmplifier: Float,
+                         trembleAmplifier: Float
+                         ): Int {
+        val size = min(magnitudes.size, phases.size)
+        val bassUp = (size * 0.2).toInt()
+        val midUp = bassUp + (size * 0.4).toInt()
+        val bassRange = 0..< bassUp
+        val midRange = bassUp ..< midUp
+        val trebleRange = midUp ..< size
+
+        val (bassMag, bassPhase) = averageInRange(magnitudes, phases, bassRange)
+        val (midMag, midPhase) = averageInRange(magnitudes, phases, midRange)
+        val (trebleMag, treblePhase) = averageInRange(magnitudes, phases, trebleRange)
+
+        val twinkleFactor = 0.5f + 0.5f * sin(bassPhase)
+        val midTwinkleEffect = 0.5f + 0.5f * sin(midPhase)
+        val trebleTwinkleEffect = 0.5f + 0.5f * sin(treblePhase)
+
+        val maxBass = bassMag * bassAmplifier / (twinkleFactor * param.bassPhaseAmplifier)
+        val maxMid = midMag * midAmplifier / (midTwinkleEffect * param.midPhaseAmplifier)
+        val maxTreble = trebleMag * trembleAmplifier / (trebleTwinkleEffect * param.tremblePhaseAmplifier)
+
+        val maxMagnitude = max(maxTreble, max(maxBass, maxMid))
+
+        val r = (maxBass / maxMagnitude * 255).coerceIn(0f, 255f).toInt()
+        val g = (maxMid / maxMagnitude * 255).coerceIn(0f, 255f).toInt()
+        val b = (maxTreble / maxMagnitude * 255).coerceIn(0f, 255f).toInt()
+
+        return (r shl 16) or (g shl 8) or b
+    }
+
+    private fun averageInRange(magArray: FloatArray, phasesArray: FloatArray, range: IntRange): Pair<Float, Float> {
+        if (range.isEmpty() || range.last >= magArray.size) return 0f to 0f
+
+        var sumMag = 0f
+        var sumPhase = 0f
+        for (i in range) {
+            sumMag += magArray[i]
+            sumPhase += phasesArray[i]
+        }
+
+        return sumMag / range.count() to sumPhase / range.count()
+    }
+
 
     private fun convertFFTtoColor(fft: ByteArray): Int {
         val fftNormalized = normalizeArray(fft)
@@ -187,11 +239,22 @@ class AudioVisualizer {
         private const val MAX_COLOR_VALUE = 255
     }
 
-    data class Color(
-        val red: Float, // value 0..1f
-        val green: Float, // value 0..1f
-        val blue: Float // value 0..1f
+    @Serializable
+    data class Param(
+        val captureDivider: Float = 1f,
+        val bassAmplifier: Float = 1f,
+        val midAmplifier: Float = 1f,
+        val trembleAmplifier: Float = 1f,
+        val bassPhaseAmplifier: Float = 1f,
+        val midPhaseAmplifier: Float = 1f,
+        val tremblePhaseAmplifier: Float = 1f,
+        val mode: Mode = Mode.CLASSIC
     )
+
+    enum class Mode {
+        CLASSIC,
+        MODERN
+    }
 
     private fun Int.map(inLow: Int, inMax: Int, outLow: Int, outHigh: Int): Int {
         if ((inMax - inLow) == 0) return 0

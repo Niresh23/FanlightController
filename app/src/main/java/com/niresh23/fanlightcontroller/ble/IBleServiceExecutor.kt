@@ -1,6 +1,7 @@
 package com.niresh23.fanlightcontroller.ble
 
 import com.niresh23.fanlightcontroller.ui.connection.DeviceViewState
+import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.flow.Flow
 
 interface IBleServiceExecutor {
@@ -25,4 +26,6 @@ interface IBleServiceExecutor {
     fun changeBrightness(value: Float)
 
     fun addDevices(devices: Collection<String>)
+
+    fun changeVisualizerParam(param: AudioVisualizer.Param)
 }

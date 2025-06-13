@@ -1,19 +1,16 @@
 package com.niresh23.fanlightcontroller.ui
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.ForegroundServiceStartNotAllowedException
 import android.app.PendingIntent
 import android.app.Service
 import android.app.TaskStackBuilder
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.niresh23.fanlightcontroller.MainActivity
@@ -22,6 +19,7 @@ import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import com.niresh23.fanlightcontroller.ble.FanlightBleController
 import com.niresh23.fanlightcontroller.ui.connection.DeviceConnectionStatus
 import com.niresh23.fanlightcontroller.ui.connection.DeviceViewState
+import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,6 +35,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 @SuppressLint("MissingPermission")
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -50,6 +49,7 @@ class BluetoothControlService: Service() {
         const val FREQUENCY_VALUE_KEY = "frequency_value_key"
         const val BRIGHTNESS_VALUE_KEY = "brightness_value_key"
         const val ADD_DEVICES_KEY = "add_devices_key"
+        const val VISUALIZER_VALUE_KEY = "visualizer_value_key"
     }
 
     private val controllerMap = HashMap<String, FanlightBleController>()
@@ -64,14 +64,32 @@ class BluetoothControlService: Service() {
     private val _brightnessStateFlow = MutableStateFlow(1f)
     private val _frequencyStateFlow = MutableStateFlow(1f)
     private val _colorStateFlow = MutableStateFlow(0)
+    private val _visualizeParamFlow = MutableStateFlow(AudioVisualizer.Param())
 
     init {
         scope.launch {
-            combine(_colorStateFlow, _frequencyStateFlow, _brightnessStateFlow) { color, frequency, brightness ->
-                ColorState(color = color, frequency = frequency, brightness = brightness)
+            combine(
+                _colorStateFlow,
+                _frequencyStateFlow,
+                _brightnessStateFlow,
+                _visualizeParamFlow
+            ) { color, frequency, brightness, param ->
+                ColorState(
+                    color = color,
+                    frequency = frequency,
+                    brightness = brightness,
+                    param = param
+                )
             }.collect { colorState ->
                 controllerMap.values.forEach {
-                    it.stateChanged(colorState.color, colorState.brightness, colorState.frequency)
+                    scope.launch {
+                        it.stateChanged(
+                            colorState.color,
+                            colorState.brightness,
+                            colorState.frequency,
+                            colorState.param
+                        )
+                    }
                 }
             }
         }
@@ -102,7 +120,8 @@ class BluetoothControlService: Service() {
                                     it.stateChanged(
                                         _colorStateFlow.value,
                                         _brightnessStateFlow.value,
-                                        _frequencyStateFlow.value
+                                        _frequencyStateFlow.value,
+                                        _visualizeParamFlow.value
                                     )
                                 }
                             }
@@ -208,9 +227,18 @@ class BluetoothControlService: Service() {
                     }
 
                     if (needUpdate) {
-                        println("NRES -- add new device in service = $newDevices")
                         _deviceViewStateFlow.value = mutableList
                     }
+                }
+            }
+
+            Actions.ChangeVisualizerParam.toString() -> {
+                val value = intent.extras?.getString(VISUALIZER_VALUE_KEY)
+
+                value?.let {
+                    val param = Json.decodeFromString<AudioVisualizer.Param>(it)
+
+                    _visualizeParamFlow.value = param
                 }
             }
         }
@@ -315,26 +343,20 @@ class BluetoothControlService: Service() {
     }
 
     private fun handleConnect(address: String) {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_CONNECT
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            controllerMap.getOrPut(address) {
-                val controller = FanlightBleController(context = this@BluetoothControlService, scope)
+        controllerMap.getOrPut(address) {
+            val controller = FanlightBleController(context = this@BluetoothControlService, scope)
 
-                scope.launch {
-                    _actionFlow.emit(controller.bleDeviceEventFlow)
+            scope.launch {
+                _actionFlow.emit(controller.bleDeviceEventFlow)
+            }
+            scope.launch {
+                controller.audioVisualizer.colorSharedFlow.collect {
+                    _colorStateFlow.emit(it)
                 }
-                scope.launch {
-                    controller.audioVisualizer.colorSharedFlow.collect {
-                        _colorStateFlow.emit(it)
-                    }
-                }
+            }
 
-                controller
-            }.connect(address)
-        }
+            controller
+        }.connect(address)
     }
 
     enum class Actions {
@@ -345,7 +367,8 @@ class BluetoothControlService: Service() {
         StopAudioVisualizer,
         ChangeVisualizerFrequency,
         ChangeBrightness,
-        AddDevices
+        AddDevices,
+        ChangeVisualizerParam
     }
 
     inner class ServiceBinder: Binder() {
@@ -355,6 +378,7 @@ class BluetoothControlService: Service() {
     data class ColorState(
         val color: Int,
         val brightness: Float,
-        val frequency: Float
+        val frequency: Float,
+        val param: AudioVisualizer.Param
     )
 }

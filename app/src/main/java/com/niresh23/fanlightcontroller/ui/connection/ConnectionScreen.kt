@@ -76,6 +76,16 @@ fun ConnectionScreen(
         }
     }
 
+    val requestOldScanPermission = rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) { isGranted ->
+        showScanAlertDialog = false
+
+        if(isGranted) {
+            action.invoke(ConnectionAction.Scan)
+        } else {
+            showScanAlertDialog = true
+        }
+    }
+
     var connectToDevice: (() -> Unit)? = null
     var showConnectAlertDialog by remember { mutableStateOf(false) }
     val requestConnectPermissionLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -111,7 +121,6 @@ fun ConnectionScreen(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
                         controllerAction.invoke(ControllerAction.Connect(address))
-
                     } else if(
                         context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_CONNECT) } == true
                     ) {
@@ -122,6 +131,8 @@ fun ConnectionScreen(
                         }
                         requestConnectPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                     }
+                } else {
+                    controllerAction.invoke(ControllerAction.Connect(address))
                 }
             },
             onDisconnect = { address ->
@@ -144,6 +155,16 @@ fun ConnectionScreen(
                         requestScanPermission.launch(Manifest.permission.BLUETOOTH_SCAN)
                     } else if(
                         context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_SCAN) } == true
+                    ) {
+                        showScanAlertDialog = true
+                    } else {
+                        action.invoke(ConnectionAction.Scan)
+                    }
+                } else {
+                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        requestOldScanPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    } else if (
+                        context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION) } == true
                     ) {
                         showScanAlertDialog = true
                     } else {
@@ -218,7 +239,6 @@ fun ConnectionScreen(
                     text = stringResource(id = R.string.scan_permission_title),
                     style = MaterialTheme.typography.titleMedium
                 )
-
             },
             text = {
                 Column {

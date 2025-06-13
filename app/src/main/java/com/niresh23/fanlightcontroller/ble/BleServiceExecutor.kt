@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import com.niresh23.fanlightcontroller.ui.BluetoothControlService
 import com.niresh23.fanlightcontroller.ui.connection.DeviceViewState
+import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 class BleServiceExecutor(
     private val context: Context,
@@ -35,8 +37,6 @@ class BleServiceExecutor(
 
             coroutineScope.launch {
                 bleService.deviceViewStateFlow.collectLatest {
-                    println("NRES -- devices from service in executor = $it")
-
                     _devicesViewState.emit(it)
                 }
             }
@@ -48,10 +48,12 @@ class BleServiceExecutor(
     }
 
     override fun onStart() {
-        Intent(context, BluetoothControlService::class.java).also {
-            context.startService(it)
-            context.bindService(it, connection, Context.BIND_AUTO_CREATE)
-        }
+        try {
+            Intent(context, BluetoothControlService::class.java).also {
+                context.startService(it)
+                context.bindService(it, connection, Context.BIND_AUTO_CREATE)
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onStop() {
@@ -128,6 +130,14 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.AddDevices.toString()
             it.putExtra(BluetoothControlService.ADD_DEVICES_KEY, devices.toTypedArray())
+            context.startService(it)
+        }
+    }
+
+    override fun changeVisualizerParam(param: AudioVisualizer.Param) {
+        Intent(context, BluetoothControlService::class.java).also {
+            it.action = BluetoothControlService.Actions.ChangeVisualizerParam.toString()
+            it.putExtra(BluetoothControlService.VISUALIZER_VALUE_KEY, Json.encodeToString(param))
             context.startService(it)
         }
     }

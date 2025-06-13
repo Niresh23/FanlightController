@@ -5,11 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionDeniedResponse
@@ -20,8 +16,6 @@ import com.niresh23.fanlightcontroller.ui.home.HomeScreen
 import com.niresh23.fanlightcontroller.ui.theme.FanlightControllerTheme
 import com.niresh23.fanlightcontroller.ui.connection.ConnectionViewModel
 import com.niresh23.fanlightcontroller.viewmodel.FanlightViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 class MainActivity : ComponentActivity() {
@@ -67,7 +61,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        try {
+            fanlightViewModel.onStop()
+        } catch (_: Exception) {}
+
         super.onStop()
-        fanlightViewModel.onStop()
     }
 }

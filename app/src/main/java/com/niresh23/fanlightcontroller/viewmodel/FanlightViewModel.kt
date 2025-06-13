@@ -2,17 +2,16 @@ package com.niresh23.fanlightcontroller.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import com.niresh23.fanlightcontroller.ble.IBleServiceExecutor
 import com.niresh23.fanlightcontroller.storage.ISettingsLocalStorage
 import com.niresh23.fanlightcontroller.ui.audiovisualizer.VisualizerViewState
 import com.niresh23.fanlightcontroller.ui.color.ColorViewState
+import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.FlowPreview
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -24,7 +23,10 @@ class FanlightViewModel(
     private val settingsLocalStorage: ISettingsLocalStorage,
     private val serviceExecutor: IBleServiceExecutor
 ): ViewModel() {
-    private val _visualizerViewStateFlow = MutableStateFlow(VisualizerViewState(1f))
+    private val _visualizerViewStateFlow = MutableStateFlow(VisualizerViewState(
+        frequency = 1f,
+        param = AudioVisualizer.Param()
+    ))
     val visualizerViewStateFlow = _visualizerViewStateFlow.asStateFlow()
 
     private val _colorViewStateFlow = MutableStateFlow(ColorViewState())
@@ -32,6 +34,7 @@ class FanlightViewModel(
 
     private val _brightnessValueFlow = MutableSharedFlow<Float>()
     private val _frequencyChangeFlow = MutableSharedFlow<Float>()
+    private val _visualizerParamChangeFlow = MutableSharedFlow<AudioVisualizer.Param>()
 
     init {
         viewModelScope.launch {
@@ -43,6 +46,11 @@ class FanlightViewModel(
             launch {
                 settingsLocalStorage.frequencyFlow.collectLatest {
                     _frequencyChangeFlow.emit(it)
+                }
+            }
+            launch {
+                settingsLocalStorage.visualizerParamsFlow.collect {
+                    _visualizerParamChangeFlow.emit(it)
                 }
             }
             launch {
@@ -61,6 +69,14 @@ class FanlightViewModel(
                     serviceExecutor.changeVisualizerFrequency(frequency)
                 }
             }
+            launch {
+                _visualizerParamChangeFlow.onEach { param ->
+                    _visualizerViewStateFlow.value = _visualizerViewStateFlow.value.copy(param = param)
+                }.debounce(100).collect { param ->
+                    settingsLocalStorage.setAudioVisualizerParams(param)
+                    serviceExecutor.changeVisualizerParam(param)
+                }
+            }
         }
     }
 
@@ -73,31 +89,32 @@ class FanlightViewModel(
     }
 
     fun onAction(action: ControllerAction) {
-        when(action) {
-            is ControllerAction.Connect -> {
-                serviceExecutor.connect(action.address)
-            }
-            is ControllerAction.Disconnect -> {
-                serviceExecutor.disconnect(action.address)
-            }
-            is ControllerAction.ChangeBrightness -> {
-                viewModelScope.launch {
+        viewModelScope.launch {
+            when(action) {
+                is ControllerAction.Connect -> {
+                    serviceExecutor.connect(action.address)
+                }
+                is ControllerAction.Disconnect -> {
+                    serviceExecutor.disconnect(action.address)
+                }
+                is ControllerAction.ChangeBrightness -> {
                     _brightnessValueFlow.emit(action.value)
                 }
-            }
-            is ControllerAction.ChangeFrequency -> {
-                viewModelScope.launch {
+                is ControllerAction.ChangeFrequency -> {
                     settingsLocalStorage.setFrequency(action.value)
                 }
-            }
-            is ControllerAction.ChangeColor -> {
-                serviceExecutor.changeColor(action.color)
-            }
-            ControllerAction.StartVisualizer -> {
-                serviceExecutor.startAudioVisualizer()
-            }
-            ControllerAction.StopVisualizer -> {
-                serviceExecutor.stopAudioVisualizer()
+                is ControllerAction.ChangeColor -> {
+                    serviceExecutor.changeColor(action.color)
+                }
+                ControllerAction.StartVisualizer -> {
+                    serviceExecutor.startAudioVisualizer()
+                }
+                ControllerAction.StopVisualizer -> {
+                    serviceExecutor.stopAudioVisualizer()
+                }
+                is ControllerAction.ChangeVisualizerParam -> {
+                    _visualizerParamChangeFlow.emit(action.param)
+                }
             }
         }
     }
@@ -111,4 +128,5 @@ sealed interface ControllerAction {
     data class ChangeColor(val color: Int): ControllerAction
     data class ChangeBrightness(val value: Float): ControllerAction
     data class ChangeFrequency(val value: Float): ControllerAction
+    data class ChangeVisualizerParam(val param: AudioVisualizer.Param): ControllerAction
 }
