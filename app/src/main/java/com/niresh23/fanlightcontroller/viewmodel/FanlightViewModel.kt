@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 
 @OptIn(FlowPreview::class)
@@ -35,6 +36,7 @@ class FanlightViewModel(
     private val _brightnessValueFlow = MutableSharedFlow<Float>()
     private val _frequencyChangeFlow = MutableSharedFlow<Float>()
     private val _visualizerParamChangeFlow = MutableSharedFlow<AudioVisualizer.Param>()
+    private val _colorChangedFlow = MutableSharedFlow<Int>()
 
     init {
         viewModelScope.launch {
@@ -77,6 +79,11 @@ class FanlightViewModel(
                     serviceExecutor.changeVisualizerParam(param)
                 }
             }
+            launch {
+                _colorChangedFlow.sample(50).collect { color ->
+                    serviceExecutor.changeColor(color)
+                }
+            }
         }
     }
 
@@ -104,7 +111,7 @@ class FanlightViewModel(
                     settingsLocalStorage.setFrequency(action.value)
                 }
                 is ControllerAction.ChangeColor -> {
-                    serviceExecutor.changeColor(action.color)
+                    _colorChangedFlow.emit(action.color)
                 }
                 ControllerAction.StartVisualizer -> {
                     serviceExecutor.startAudioVisualizer()

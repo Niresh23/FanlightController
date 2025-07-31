@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.niresh23.fanlightcontroller"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.niresh23.fanlightcontroller"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 6
         versionName = "1.0.4"
 

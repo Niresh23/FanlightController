@@ -86,7 +86,7 @@ fun HomeScreen(
                     top = topPadding + 16.dp,
                     start = 16.dp,
                     end = 16.dp,
-                    bottom = bottomPadding + 24.dp
+                    bottom = bottomPadding + 16.dp
                 )
         ) {
             NavHost(navController = navController, startDestination = startDestination) {

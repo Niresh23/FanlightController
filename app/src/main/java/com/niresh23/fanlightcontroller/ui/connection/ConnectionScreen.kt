@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -142,42 +141,42 @@ fun ConnectionScreen(
                 .fillMaxWidth()
                 .weight(1f)
         )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .safeContentPadding(),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            Button(onClick = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                        requestScanPermission.launch(Manifest.permission.BLUETOOTH_SCAN)
-                    } else if(
-                        context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_SCAN) } == true
-                    ) {
-                        showScanAlertDialog = true
-                    } else {
-                        action.invoke(ConnectionAction.Scan)
-                    }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            modifier = Modifier.fillMaxWidth(fraction = 0.8f).align(Alignment.CenterHorizontally),
+            onClick = {
+                if (viewState.scanning) {
+                    action.invoke(ConnectionAction.StopScan)
                 } else {
-                    if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        requestOldScanPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    } else if (
-                        context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION) } == true
-                    ) {
-                        showScanAlertDialog = true
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                            requestScanPermission.launch(Manifest.permission.BLUETOOTH_SCAN)
+                        } else if(
+                            context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_SCAN) } == true
+                        ) {
+                            showScanAlertDialog = true
+                        } else {
+                            action.invoke(ConnectionAction.Scan)
+                        }
                     } else {
-                        action.invoke(ConnectionAction.Scan)
+                        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                            requestOldScanPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        } else if (
+                            context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION) } == true
+                        ) {
+                            showScanAlertDialog = true
+                        } else {
+                            action.invoke(ConnectionAction.Scan)
+                        }
                     }
                 }
-            }) {
-                Text(text = stringResource(id = R.string.find_lbl))
-            }
-            Button(onClick = {
-                action.invoke(ConnectionAction.StopScan)
-            }) {
+        }) {
+            if(viewState.scanning) {
                 Text(text = stringResource(id = R.string.stop_lbl))
+            } else {
+                Text(text = stringResource(id = R.string.find_lbl))
             }
         }
     }

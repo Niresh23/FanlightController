@@ -139,12 +139,25 @@ class BleAdapter(
 
     override fun requestBatteryLevel() {
         batteryLevelCharacteristics?.let {
-            gatt?.readCharacteristic(batteryLevelCharacteristics)
+            if (ActivityCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                gatt?.readCharacteristic(batteryLevelCharacteristics)
+            }
         }
     }
 
     override fun release() {
-        gatt?.close()
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            gatt?.close()
+        }
+
         gattClient = null
         gatt = null
         messageCharacteristic = null
