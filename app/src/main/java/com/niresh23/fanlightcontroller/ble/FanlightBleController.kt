@@ -94,6 +94,7 @@ class FanlightBleController(
     }
 
     fun release() {
+        audioVisualizer.release()
         bleAdapter.release()
     }
 
