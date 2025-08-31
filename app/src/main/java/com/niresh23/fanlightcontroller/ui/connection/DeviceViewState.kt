@@ -1,23 +1,16 @@
 package com.niresh23.fanlightcontroller.ui.connection
 
-sealed interface DeviceViewState {
-    val name: String
-    val address: String
+data class DeviceViewState (
+    val name: String,
+    val address: String,
+    val status: DeviceConnectionStatus = DeviceConnectionStatus.DISCONNECTED,
+    val connecting: Boolean = false,
+    val batteryLevel: Int = 0
+)
 
-    data class Disconnected(
-        override val name: String,
-        override val address: String
-    ) : DeviceViewState
-
-    data class Connected(
-        override val name: String,
-        override val address: String
-    ): DeviceViewState
-
-    data class Error(
-        override val name: String,
-        override val address: String,
-        val errorMessage: String,
-        val code: Int
-    ): DeviceViewState
+enum class DeviceConnectionStatus {
+    DISCONNECTED,
+    CONNECTED,
+    CONNECTING,
+    DISCONNECTING
 }
