@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.org.jetbrains.kotlin.android)
     alias(libs.plugins.org.jetbrains.kotlin.serialization)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
@@ -13,8 +14,8 @@ android {
         applicationId = "com.niresh23.fanlightcontroller"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.0.4"
+        versionCode = 12
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

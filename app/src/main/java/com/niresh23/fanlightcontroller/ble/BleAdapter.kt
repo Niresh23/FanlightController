@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
@@ -18,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class BleAdapter(
     private val context: Context,
@@ -34,9 +36,14 @@ class BleAdapter(
     private var gatt: BluetoothGatt? = null
     private var messageCharacteristic: BluetoothGattCharacteristic? = null
     private var batteryLevelCharacteristics: BluetoothGattCharacteristic? = null
+    private var rainbowCharacteristic: BluetoothGattCharacteristic? = null
+    private var bluetoothGattService: BluetoothGattService? = null
     var isConnected = false
         private set
 
+    fun getServiceUUID(): String {
+        return bluetoothGattService?.uuid?.toString() ?: ""
+    }
 
     private val gattClientCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onCharacteristicChanged(
@@ -80,12 +87,23 @@ class BleAdapter(
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 gatt = discoveredGatt
                 val batteryService = discoveredGatt.getService(Constants.BATTERY_SERVICE_UUID)
-                val service = discoveredGatt.getService(Constants.SERVICE_UUID)
+
+                bluetoothGattService = discoveredGatt.services.first {
+                    it.uuid.toString() == Constants.SERVICE_UUID || it.uuid.toString() == Constants.SERVICE_UUID_2
+                }
+
+                val service = bluetoothGattService
 
                 if(service != null) {
-                    messageCharacteristic = service.getCharacteristic(Constants.MESSAGE_UUID)
+                    messageCharacteristic = if(service.uuid.toString() == Constants.SERVICE_UUID) {
+                        rainbowCharacteristic = service.getCharacteristic(Constants.MESSAGE_RAINBOW_UUID)
+                        service.getCharacteristic(Constants.MESSAGE_UUID)
+                    } else {
+                        service.getCharacteristic(Constants.MESSAGE_UUID_2)
+                    }
+
                     scope.launch {
-                        _bleDeviceEventFlow.emit(DeviceEvent.Connected(discoveredGatt.device.address))
+                        _bleDeviceEventFlow.emit(DeviceEvent.Connected(discoveredGatt.device.address, service.uuid.toString() == Constants.SERVICE_UUID))
                     }
                 }
 
@@ -127,13 +145,14 @@ class BleAdapter(
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     override fun sendMessage(message: ByteArray) {
         messageCharacteristic?.let { characteristic ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                gatt?.writeCharacteristic(characteristic, message, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
-            } else {
-                characteristic.value = message
-                characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                gatt?.writeCharacteristic(characteristic)
-            }
+            sendMessage(message, characteristic)
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    override fun sendRainbowMessage(message: ByteArray) {
+        rainbowCharacteristic?.let { characteristic ->
+            sendMessage(message, characteristic)
         }
     }
 
@@ -162,5 +181,57 @@ class BleAdapter(
         gatt = null
         messageCharacteristic = null
         batteryLevelCharacteristics = null
+    }
+
+    override fun selectService(service: String) {
+        bluetoothGattService = gatt?.getService(UUID.fromString(service))
+        val gattService = bluetoothGattService ?: return
+
+        scope.launch {
+            gatt?.device?.address?.let {
+                _bleDeviceEventFlow.emit(DeviceEvent.Connected(it, service == Constants.SERVICE_UUID))
+            }
+        }
+
+        scope.launch {
+            gatt?.device?.address?.let { address ->
+                _bleDeviceEventFlow.emit(
+                    DeviceEvent.Characteristics(
+                        address,
+                        service,
+                        gattService.characteristics.map { it.uuid.toString() })
+                )
+            }
+        }
+    }
+
+    override fun selectCharacteristic(characteristic: String) {
+        messageCharacteristic = bluetoothGattService?.getCharacteristic(UUID.fromString(characteristic))
+        scope.launch {
+            gatt?.device?.address?.let { address ->
+                bluetoothGattService?.uuid?.let { serviceUuid ->
+                    _bleDeviceEventFlow.emit(
+                        DeviceEvent.CharacteristicSelected(
+                            address,
+                            serviceUuid.toString(),
+                            characteristic
+                        )
+                    )
+                }
+
+            }
+
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun sendMessage(message: ByteArray, characteristic: BluetoothGattCharacteristic) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            gatt?.writeCharacteristic(characteristic, message, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        } else {
+            characteristic.value = message
+            characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            gatt?.writeCharacteristic(characteristic)
+        }
     }
 }

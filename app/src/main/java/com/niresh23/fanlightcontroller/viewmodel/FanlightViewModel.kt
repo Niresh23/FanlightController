@@ -119,8 +119,17 @@ class FanlightViewModel(
                 ControllerAction.StopVisualizer -> {
                     serviceExecutor.stopAudioVisualizer()
                 }
+                is ControllerAction.RainbowClicked -> {
+                    serviceExecutor.sendRainbowMessage()
+                }
                 is ControllerAction.ChangeVisualizerParam -> {
                     _visualizerParamChangeFlow.emit(action.param)
+                }
+                is ControllerAction.ServiceSelected -> {
+                    serviceExecutor.serviceSelected(action.address, action.service)
+                }
+                is ControllerAction.CharacteristicSelected -> {
+                    serviceExecutor.characteristicSelected(action.address, action.characteristic)
                 }
             }
         }
@@ -136,4 +145,7 @@ sealed interface ControllerAction {
     data class ChangeBrightness(val value: Float): ControllerAction
     data class ChangeFrequency(val value: Float): ControllerAction
     data class ChangeVisualizerParam(val param: AudioVisualizer.Param): ControllerAction
+    data class CharacteristicSelected(val address: String, val characteristic: String): ControllerAction
+    data class ServiceSelected(val address: String, val service: String): ControllerAction
+    data class RainbowClicked(val address: String) : ControllerAction
 }

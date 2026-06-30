@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.niresh23.fanlightcontroller.MainActivity
 import com.niresh23.fanlightcontroller.R
+import com.niresh23.fanlightcontroller.ble.BleDeviceData
 import com.niresh23.fanlightcontroller.ble.DeviceEvent
 import com.niresh23.fanlightcontroller.ble.FanlightBleController
 import com.niresh23.fanlightcontroller.ui.connection.DeviceConnectionStatus
@@ -50,6 +51,8 @@ class BluetoothControlService: Service() {
         const val BRIGHTNESS_VALUE_KEY = "brightness_value_key"
         const val ADD_DEVICES_KEY = "add_devices_key"
         const val VISUALIZER_VALUE_KEY = "visualizer_value_key"
+        const val SELECTED_CHARACTERISTIC_KEY = "selected_characteristic_key"
+        const val SELECTED_SERVICE_KEY = "selected_service_key"
     }
 
     private val controllerMap = HashMap<String, FanlightBleController>()
@@ -213,16 +216,21 @@ class BluetoothControlService: Service() {
             }
 
             Actions.AddDevices.toString() -> {
-                val value = intent.extras?.getStringArray(ADD_DEVICES_KEY)
+                val value = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.extras?.getParcelableArray(ADD_DEVICES_KEY,
+                        BleDeviceData::class.java)
+                } else {
+                    intent.extras?.getParcelableArray(ADD_DEVICES_KEY) as Array<BleDeviceData>
+                }
 
                 value?.let { newDevices ->
                     val mutableList = _deviceViewStateFlow.value.toMutableList()
                     var needUpdate = false
 
-                    newDevices.forEach { address ->
-                        if (!mutableList.any { it.address == address }) {
+                    newDevices.forEach { device ->
+                        if (!mutableList.any { it.address == device.address }) {
                             needUpdate = true
-                            mutableList.add(DeviceViewState(name = "Exo Lightstick ver. 3", address = address))
+                            mutableList.add(DeviceViewState(name = device.name, address = device.address, device.connectable))
                         }
                     }
 
@@ -241,6 +249,26 @@ class BluetoothControlService: Service() {
                     _visualizeParamFlow.value = param
                 }
             }
+
+            Actions.SelectedService.toString() -> {
+                val value = intent.extras?.getString(SELECTED_SERVICE_KEY)
+
+                value?.let {
+                    handleSelectedService(it)
+                }
+            }
+
+            Actions.SelectedCharacteristic.toString() -> {
+                val value = intent.extras?.getString(SELECTED_CHARACTERISTIC_KEY)
+
+                value?.let {
+                    handleSelectedCharacteristic(value)
+                }
+            }
+
+            Actions.SendRainbowMessage.toString() -> {
+                controllerMap.values.forEach { it.sendRainbowMessage() }
+            }
         }
 
         return super.onStartCommand(intent, flags, startId)
@@ -251,7 +279,7 @@ class BluetoothControlService: Service() {
             is DeviceEvent.Connected -> {
                 val mutableList = _deviceViewStateFlow.value.toMutableList()
                 val index = mutableList.indexOfFirst { it.address == event.address }
-                mutableList[index] = mutableList[index].copy(status = DeviceConnectionStatus.CONNECTED)
+                mutableList[index] = mutableList[index].copy(status = DeviceConnectionStatus.CONNECTED, rainbowIsVisible = event.supportsRainbow)
                 _deviceViewStateFlow.value = mutableList
             }
 
@@ -280,6 +308,27 @@ class BluetoothControlService: Service() {
                 val mutableList = _deviceViewStateFlow.value.toMutableList()
                 val index = mutableList.indexOfFirst { it.address == event.address }
                 mutableList[index] = mutableList[index].copy(batteryLevel = event.level)
+                _deviceViewStateFlow.value = mutableList
+            }
+
+            is DeviceEvent.Services -> {
+                val mutableList = _deviceViewStateFlow.value.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(services = event.services)
+                _deviceViewStateFlow.value = mutableList
+            }
+
+            is DeviceEvent.Characteristics -> {
+                val mutableList = _deviceViewStateFlow.value.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(characteristics = event.characteristics, selectedService = event.service)
+                _deviceViewStateFlow.value = mutableList
+            }
+
+            is DeviceEvent.CharacteristicSelected -> {
+                val mutableList = _deviceViewStateFlow.value.toMutableList()
+                val index = mutableList.indexOfFirst { it.address == event.address }
+                mutableList[index] = mutableList[index].copy(selectedCharacteristic = event.characteristic, selectedService = event.service)
                 _deviceViewStateFlow.value = mutableList
             }
         }
@@ -359,6 +408,18 @@ class BluetoothControlService: Service() {
         }.connect(address)
     }
 
+    private fun handleSelectedService(service: String) {
+        controllerMap.values.forEach { controller ->
+            controller.selectService(service)
+        }
+    }
+
+    private fun handleSelectedCharacteristic(characteristic: String) {
+        controllerMap.values.forEach { controller ->
+            controller.selectCharacteristic(characteristic)
+        }
+    }
+
     enum class Actions {
         Connect,
         Disconnect,
@@ -368,7 +429,10 @@ class BluetoothControlService: Service() {
         ChangeVisualizerFrequency,
         ChangeBrightness,
         AddDevices,
-        ChangeVisualizerParam
+        ChangeVisualizerParam,
+        SelectedCharacteristic,
+        SelectedService,
+        SendRainbowMessage
     }
 
     inner class ServiceBinder: Binder() {

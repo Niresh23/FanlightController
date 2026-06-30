@@ -3,6 +3,7 @@ package com.niresh23.fanlightcontroller.ui.connection
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.niresh23.fanlightcontroller.ble.IBleServiceExecutor
+import com.niresh23.fanlightcontroller.utils.Constants
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -16,13 +17,14 @@ class ConnectionViewModel(
     private val _viewStateFlow = MutableStateFlow(ConnectionViewState())
     val viewState = _viewStateFlow.asStateFlow()
 
+    private var allDevices: List<DeviceViewState> = emptyList()
+
     init {
         viewModelScope.launch {
             bleScanner.scanEventFlow.collectLatest { scanAction ->
                 when(scanAction) {
                     is BleScannerAdapter.ScanEvent.ScanResult -> {
-                        serviceExecutor.addDevices(scanAction.scanResults.keys)
-                        _viewStateFlow.value = _viewStateFlow.value.copy(scanning = false)
+                        serviceExecutor.addDevices(scanAction.scanResults)
                     }
 
                     is BleScannerAdapter.ScanEvent.Error -> {
@@ -43,8 +45,11 @@ class ConnectionViewModel(
 
     fun onCreate() {
         viewModelScope.launch {
-            serviceExecutor.devicesViewState.collect {
-                _viewStateFlow.value = _viewStateFlow.value.copy(deviceList = it)
+            serviceExecutor.devicesViewState.collect { devices ->
+                allDevices = devices
+                _viewStateFlow.value = _viewStateFlow.value.copy(
+                    deviceList = filterDevices(devices, _viewStateFlow.value.onlyExo)
+                )
             }
         }
     }
@@ -52,15 +57,27 @@ class ConnectionViewModel(
     fun onAction(action: ConnectionAction) {
         viewModelScope.launch {
             when(action) {
-                ConnectionAction.Scan -> {
-                    bleScanner.startScan()
+                is ConnectionAction.Scan -> {
+                    bleScanner.startScan(Constants.SERVICE_UUID, Constants.SERVICE_UUID_2)
                 }
 
                 ConnectionAction.StopScan -> {
                     bleScanner.stopScan()
                 }
+
+                is ConnectionAction.ChangeScanFilter -> {
+                    _viewStateFlow.value = _viewStateFlow.value.copy(
+                        onlyExo = action.value,
+                        deviceList = filterDevices(allDevices, action.value)
+                    )
+                }
             }
         }
+    }
+
+    private fun filterDevices(devices: List<DeviceViewState>, onlyExo: Boolean): List<DeviceViewState> {
+        if (!onlyExo) return devices
+        return devices.filter { it.name.contains("exo", ignoreCase = true) }
     }
 
     override fun onCleared() {

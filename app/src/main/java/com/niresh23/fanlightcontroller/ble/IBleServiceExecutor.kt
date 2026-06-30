@@ -25,7 +25,13 @@ interface IBleServiceExecutor {
 
     fun changeBrightness(value: Float)
 
-    fun addDevices(devices: Collection<String>)
+    fun addDevices(devices: Collection<BleDeviceData>)
 
     fun changeVisualizerParam(param: AudioVisualizer.Param)
+
+    fun characteristicSelected(address: String, characteristic: String)
+
+    fun serviceSelected(address: String, service: String)
+
+    fun sendRainbowMessage()
 }

@@ -3,6 +3,7 @@ package com.niresh23.fanlightcontroller.ble
 import android.Manifest
 import android.content.Context
 import androidx.annotation.RequiresPermission
+import com.niresh23.fanlightcontroller.utils.Constants
 import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +56,14 @@ class FanlightBleController(
         audioVisualizer.init(0)
     }
 
+    fun selectService(service: String) {
+        bleAdapter.selectService(service)
+    }
+
+    fun selectCharacteristic(characteristic: String) {
+        bleAdapter.selectCharacteristic(characteristic)
+    }
+
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun setBrightness(value: Float) {
         if (value in 0f.. 1f) {
@@ -69,16 +78,60 @@ class FanlightBleController(
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun colorChange(color: Int) {
         currentColor = color
+
+        val arrayOfByte = if (bleAdapter.getServiceUUID() == Constants.SERVICE_UUID) {
+            ByteArray(20).also {
+                it[0] = 1
+                it[1] = 15
+                it[2] = 0
+                it[3] = ((0xFF0000 and currentColor shr 16) * brightness).toInt().toByte()
+                it[4] = ((0xFF00 and currentColor shr 8) * brightness).toInt().toByte()
+                it[5] = ((currentColor and 0xFF) * brightness).toInt().toByte()
+            }
+        } else if (bleAdapter.getServiceUUID() == Constants.SERVICE_UUID_2) {
+            var b = 11.toByte()
+            ByteArray(11).also {
+                var b1: Byte = 2
+                it[0] = 1
+                it[1] = 1
+                it[2] = b
+                it[3] = 0
+                it[4] = 0
+                it[5] = ((0xFF0000 and currentColor shr 16) * brightness).toInt().toByte()
+                it[6] = ((0xFF00 and currentColor shr 8) * brightness).toInt().toByte()
+                it[7] = ((currentColor and 0xFF) * brightness).toInt().toByte()
+                it[8] = 0
+                it[9] = 0
+
+                b = 0
+                while (b1 < 11) {
+                    b = (b + it[b1.toInt()]).toByte()
+                    b1++
+                }
+
+                it[10] = b
+            }
+        } else {
+            ByteArray(0)
+        }
+
+        this.writeDataStrobe(arrayOfByte)
+    }
+
+    @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
+    fun sendRainbowMessage() {
         val arrayOfByte = ByteArray(20)
         arrayOfByte[0] = 1
         arrayOfByte[1] = 15
         arrayOfByte[2] = 0
-        arrayOfByte[3] = ((0xFF0000 and currentColor shr 16) * brightness).toInt().toByte()
-        arrayOfByte[4] = ((0xFF00 and currentColor shr 8) * brightness).toInt().toByte()
-        arrayOfByte[5] = ((currentColor and 0xFF) * brightness).toInt().toByte()
+        arrayOfByte[3] = 7
+        arrayOfByte[4] = 13
+        arrayOfByte[5] = 0
 
-        this.writeDataStrobe(arrayOfByte)
+        this.writeDataStrobe(arrayOfByte, true)
     }
+    // For rainbow mode
+    // [1, 15, 0, 7, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
     fun stateChanged(
@@ -99,7 +152,7 @@ class FanlightBleController(
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    private fun writeDataStrobe(paramArrayOfByte: ByteArray) {
+    private fun writeDataStrobe(paramArrayOfByte: ByteArray, isRainbow: Boolean = false) {
         var i = 0
         while (i < paramArrayOfByte.size) {
             val j = i + 20
@@ -109,49 +162,43 @@ class FanlightBleController(
             i = j
         }
 
-        reQuestStrobe()
+        reQuestStrobe(isRainbow)
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    private fun reQuestStrobe() {
+    private fun reQuestStrobe(isRainbow: Boolean) {
         if (this.sendQueue.isEmpty()) {return}
         this.sendQueue.poll()?.let {
-            sendMessage(it)
+            sendMessage(it, isRainbow)
         }
     }
 
     @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    private fun sendMessage(value: ByteArray) {
-        bleAdapter.sendMessage(value)
-    }
-
-    @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    private fun writeData(paramArrayOfByte: ByteArray) {
-        var i = 0
-        while (i < paramArrayOfByte.size) {
-            val j = i + 20
-            val arrayOfByte =
-                paramArrayOfByte.copyOfRange(i, j.coerceAtMost(paramArrayOfByte.size))
-            this.sendQueue.add(arrayOfByte)
-            i = j
-        }
-
-        reQuest()
-    }
-
-    @RequiresPermission(value = "android.permission.BLUETOOTH_CONNECT")
-    private fun reQuest() {
-        if (this.sendQueue.isEmpty()) return
-        this.sendQueue.poll()?.let {
-            sendMessage(it)
+    private fun sendMessage(value: ByteArray, isRainbow: Boolean) {
+        if (isRainbow) {
+            bleAdapter.sendRainbowMessage(value)
+        } else {
+            bleAdapter.sendMessage(value)
         }
     }
 }
 
 sealed interface DeviceEvent {
-    data class Connecting(val address: String): DeviceEvent
-    data class Connected(val address: String): DeviceEvent
-    data class Disconnecting(val address: String): DeviceEvent
-    data class Disconnected(val address: String): DeviceEvent
-    data class BatteryLevel(val address: String, val level: Int): DeviceEvent
+    val address: String
+    data class Connecting(override val address: String): DeviceEvent
+    data class Connected(override val address: String, val supportsRainbow: Boolean): DeviceEvent
+    data class Disconnecting(override val address: String): DeviceEvent
+    data class Disconnected(override val address: String): DeviceEvent
+    data class BatteryLevel(override val address: String, val level: Int): DeviceEvent
+    data class Services(override val address: String, val services: List<String>): DeviceEvent
+    data class Characteristics(
+        override val address: String,
+        val service: String,
+        val characteristics: List<String>,
+    ): DeviceEvent
+    data class CharacteristicSelected(
+        override val address: String,
+        val service: String,
+        val characteristic: String,
+    ): DeviceEvent
 }

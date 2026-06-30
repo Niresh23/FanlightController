@@ -8,6 +8,9 @@ interface IBleAdapter {
     fun connect(address: String)
     fun disconnect()
     fun sendMessage(message: ByteArray)
+    fun sendRainbowMessage(message: ByteArray)
     fun requestBatteryLevel()
     fun release()
+    fun selectService(service: String)
+    fun selectCharacteristic(characteristic: String)
 }

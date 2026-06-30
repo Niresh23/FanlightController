@@ -6,6 +6,9 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +21,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Battery0Bar
 import androidx.compose.material.icons.filled.Battery1Bar
@@ -29,11 +34,15 @@ import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonColors
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
@@ -65,11 +75,13 @@ fun ConnectionScreen(
 ) {
     var showScanAlertDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val requestScanPermission = rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission()) { isGranted ->
+    val requestScanPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
         showScanAlertDialog = false
 
-        if(isGranted) {
-            action.invoke(ConnectionAction.Scan)
+        if(!result.values.any { !it }) {
+            action.invoke(ConnectionAction.Scan())
         } else {
             showScanAlertDialog = true
         }
@@ -79,7 +91,7 @@ fun ConnectionScreen(
         showScanAlertDialog = false
 
         if(isGranted) {
-            action.invoke(ConnectionAction.Scan)
+            action.invoke(ConnectionAction.Scan())
         } else {
             showScanAlertDialog = true
         }
@@ -99,22 +111,43 @@ fun ConnectionScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         Text(
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            text = "Find Device"
+            modifier = Modifier.padding(8.dp),
+            text = stringResource(id = R.string.scan_description_message)
         )
-
-        Text(text = stringResource(id = R.string.scan_description_message))
 
         if (viewState.scanning) {
             LinearProgressIndicator(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
+                    .fillMaxWidth(),
                 color = MaterialTheme.colorScheme.secondary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = if (viewState.onlyExo) "Exo Lightstick" else "All Devices",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Switch(
+                checked = viewState.onlyExo,
+                onCheckedChange = { checked ->
+                    action.invoke(ConnectionAction.ChangeScanFilter(checked))
+                }
+            )
+        }
+
         BluetoothDeviceList(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
             scannedDevices = viewState.deviceList,
             onConnect = { address ->
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -137,28 +170,34 @@ fun ConnectionScreen(
             onDisconnect = { address ->
                 controllerAction.invoke(ControllerAction.Disconnect(address))
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+            onServiceSelected = { address, service ->
+                controllerAction.invoke(ControllerAction.ServiceSelected(address, service))
+            },
+            onCharacteristicSelected = { address, characteristic ->
+                controllerAction.invoke(ControllerAction.CharacteristicSelected(address, characteristic))
+            },
+            onRainbowClicked = { address ->
+                controllerAction.invoke(ControllerAction.RainbowClicked(address))
+            }
         )
 
-        Spacer(modifier = Modifier.weight(1f))
-
         Button(
-            modifier = Modifier.fillMaxWidth(fraction = 0.8f).align(Alignment.CenterHorizontally),
+            modifier = Modifier
+                .fillMaxWidth(fraction = 0.8f)
+                .align(Alignment.CenterHorizontally),
             onClick = {
                 if (viewState.scanning) {
                     action.invoke(ConnectionAction.StopScan)
                 } else {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                            requestScanPermission.launch(Manifest.permission.BLUETOOTH_SCAN)
+                            requestScanPermission.launch(listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT).toTypedArray())
                         } else if(
                             context.getActivity()?.let { activity -> ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_SCAN) } == true
                         ) {
                             showScanAlertDialog = true
                         } else {
-                            action.invoke(ConnectionAction.Scan)
+                            action.invoke(ConnectionAction.Scan())
                         }
                     } else {
                         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -168,7 +207,7 @@ fun ConnectionScreen(
                         ) {
                             showScanAlertDialog = true
                         } else {
-                            action.invoke(ConnectionAction.Scan)
+                            action.invoke(ConnectionAction.Scan())
                         }
                     }
                 }
@@ -223,7 +262,7 @@ fun ConnectionScreen(
             onDismissRequest = { showConnectAlertDialog = false },
             confirmButton = {
                 TextButton(onClick = {
-                    requestScanPermission.launch(Manifest.permission.BLUETOOTH_SCAN)
+                    requestScanPermission.launch(arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT))
                 }) {
                     Text(text = "Ok")
                 }
@@ -290,19 +329,27 @@ fun BluetoothDeviceList(
     scannedDevices: List<DeviceViewState>,
     onConnect: (String) -> Unit,
     onDisconnect: (String) -> Unit,
+    onCharacteristicSelected: (String, String) -> Unit,
+    onServiceSelected: (String, String) -> Unit,
+    onRainbowClicked: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val rainbowColors = listOf(
+        Color(0xFFDA034E), // Red
+        Color(0xFFFF9800), // Orange
+        Color(0xFFFFEB3B), // Yellow
+        Color(0xFF4CAF50), // Green
+        Color(0xFF2196F3), // Blue
+        Color(0xFF3F51B5), // Indigo
+        Color(0xFF9C27B0)  // Violet
+    )
+
+    val brush = Brush.linearGradient(colors = rainbowColors)
+
     LazyColumn(
-        modifier = modifier.padding(horizontal = 16.dp),
+        modifier = modifier.padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item {
-            Text(
-                text = stringResource(id = R.string.connect_to_device_explanation),
-                modifier = Modifier.padding(16.dp)
-            )
-        }
-
         items(scannedDevices) { device ->
             Card {
                 Column(
@@ -347,6 +394,21 @@ fun BluetoothDeviceList(
                             )
                         )
 
+                        if (device.rainbowIsVisible) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            TextButton(
+                                modifier = Modifier.background(brush, ButtonDefaults.outlinedShape),
+                                onClick = {
+                                    onRainbowClicked.invoke(device.address)
+                                }
+                            ) {
+                                Text(
+                                    "Rainbow",
+                                    color = Color.DarkGray
+                                )
+                            }
+                        }
+
                         Spacer(modifier = Modifier.weight(1f))
 
                         OutlinedButton(
@@ -366,6 +428,55 @@ fun BluetoothDeviceList(
                             Text(
                                 text = if (device.status == DeviceConnectionStatus.CONNECTED) "Disconnect" else "Connect"
                             )
+                        }
+                    }
+
+                    if (device.services.isNotEmpty()) {
+                        Text(
+                            text = "Services:",
+                        )
+                        device.services.forEach { service ->
+                            Column(modifier = Modifier.fillMaxWidth().background(color = MaterialTheme.colorScheme.secondary, shape = RoundedCornerShape(8.dp))) {
+                                Text(
+                                    modifier = Modifier.padding(8.dp).clickable(true) {
+                                        onServiceSelected.invoke(device.address, service)
+                                    },
+                                    text = service,
+                                    color = MaterialTheme.colorScheme.onSecondary
+                                )
+
+                                if (device.selectedService == service) {
+                                    Text(
+                                        modifier = Modifier.padding(start = 16.dp),
+                                        text = "Characteristics:",
+                                        color = MaterialTheme.colorScheme.onSecondary
+                                    )
+                                    device.characteristics.forEach { characteristic ->
+                                        Row(modifier = Modifier
+
+                                            .padding(start = 16.dp, bottom = 4.dp)
+                                            .border(1.dp, color = MaterialTheme.colorScheme.onSecondary, shape = RoundedCornerShape(corner = CornerSize(4.dp)))) {
+                                            RadioButton(
+                                                modifier = Modifier.align(Alignment.CenterVertically),
+                                                selected = characteristic == device.selectedCharacteristic,
+                                                onClick = null,
+                                                colors = RadioButtonColors(
+                                                    selectedColor = MaterialTheme.colorScheme.inversePrimary,
+                                                    unselectedColor = MaterialTheme.colorScheme.inversePrimary,
+                                                    disabledSelectedColor = Color.Gray,
+                                                    disabledUnselectedColor = Color.Gray,
+                                                ))
+                                            Text(
+                                                modifier = Modifier.padding(4.dp).clickable(true) {
+                                                    onCharacteristicSelected.invoke(device.address, characteristic)
+                                                },
+                                                text = characteristic,
+                                                color = MaterialTheme.colorScheme.onSecondary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -427,11 +538,12 @@ fun ConnectionScreenPreview() {
         ConnectionScreen(
             viewState = ConnectionViewState(
                 deviceList = listOf(
-                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", status = DeviceConnectionStatus.CONNECTED, batteryLevel = 100),
-                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", status = DeviceConnectionStatus.CONNECTING, batteryLevel = 35),
-                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:19", batteryLevel = 5)
+                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", true, status = DeviceConnectionStatus.CONNECTED, batteryLevel = 100, services = listOf("service1", "service2", "service3"), selectedService = "service1", characteristics = listOf("sdfsafd", "dfasdfasdf", "sdafasdfasdfsafsad")),
+                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", false,  status = DeviceConnectionStatus.CONNECTING, batteryLevel = 35),
+                    DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:19", true,  batteryLevel = 5)
                 ),
                 scanning = true
-            ), {} , {})
+            ), {} , {}
+        )
     }
 }

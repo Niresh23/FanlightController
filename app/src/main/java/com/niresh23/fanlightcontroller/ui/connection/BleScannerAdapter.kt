@@ -14,7 +14,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import androidx.core.app.ActivityCompat
-import com.niresh23.fanlightcontroller.utils.Constants
+import com.niresh23.fanlightcontroller.ble.BleDeviceData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.lang.Exception
+import java.util.UUID
 
 class BleScannerAdapter(
     private val context: Context,
@@ -69,8 +70,8 @@ class BleScannerAdapter(
         coroutineScope.cancel()
     }
 
-    override fun startScan() {
-        scanFilters = buildScanFilters()
+    override fun startScan(vararg uuids: String) {
+        scanFilters = buildScanFilters(*uuids)
         scanSettings = buildScanSettings()
         if (scanCallback == null) {
             scanner = adapter?.bluetoothLeScanner
@@ -92,21 +93,22 @@ class BleScannerAdapter(
                             Manifest.permission.BLUETOOTH_SCAN
                         ) == PackageManager.PERMISSION_GRANTED
                     ) {
-                        scanner?.startScan(scanFilters, scanSettings, scanCallback)
+                        scanner?.startScan(null, scanSettings, scanCallback)
                     }
                 } else {
-                    scanner?.startScan(scanFilters, scanSettings, scanCallback)
+                    scanner?.startScan(null, scanSettings, scanCallback)
                 }
             }
-
         }
     }
 
-    private fun buildScanFilters(): List<ScanFilter> {
-        val builder = ScanFilter.Builder()
-        builder.setServiceUuid(ParcelUuid(Constants.SERVICE_UUID))
-        val filter = builder.build()
-        return listOf(filter)
+    private fun buildScanFilters(vararg uuids: String): List<ScanFilter> {
+        return uuids.map {
+            val builder = ScanFilter.Builder()
+            builder.setServiceUuid(ParcelUuid(UUID.fromString(it)))
+
+            builder.build()
+        }
     }
 
 
@@ -127,8 +129,19 @@ class BleScannerAdapter(
                     scanResults[device.address] = device
                 }
             }
+
             coroutineScope.launch {
-                flow.emit(ScanEvent.ScanResult(scanResults))
+                flow.emit(ScanEvent.ScanResult(
+                    results.mapNotNull { result ->
+                        result.device?.let { device ->
+                            BleDeviceData(
+                                device.address,
+                                device.alias ?: device.name ?: "Unknown",
+                                result.isConnectable
+                            )
+                        }
+                    }
+                ))
             }
         }
 
@@ -140,8 +153,19 @@ class BleScannerAdapter(
             result.device?.let { device ->
                 scanResults[device.address] = device
             }
+            result.scanRecord?.advertiseFlags == 2
             coroutineScope.launch {
-                flow.emit(ScanEvent.ScanResult(scanResults))
+                flow.emit(
+                    ScanEvent.ScanResult(
+                        scanResults.map { it.value }.map { device ->
+
+                        BleDeviceData(
+                            device.address,
+                            device.alias ?: device.name ?: "Unknown",
+                            result.isConnectable
+                        )
+                    }
+                ))
             }
         }
 
@@ -157,7 +181,7 @@ class BleScannerAdapter(
     sealed interface ScanEvent {
         data object Scanning: ScanEvent
         data object StopScanning: ScanEvent
-        data class ScanResult(val scanResults: Map<String, BluetoothDevice>): ScanEvent
+        data class ScanResult(val scanResults: List<BleDeviceData>): ScanEvent
         data class Error(val message: String): ScanEvent
     }
 }

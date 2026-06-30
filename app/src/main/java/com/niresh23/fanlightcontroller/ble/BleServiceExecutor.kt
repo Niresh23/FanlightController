@@ -126,7 +126,7 @@ class BleServiceExecutor(
         }
     }
 
-    override fun addDevices(devices: Collection<String>) {
+    override fun addDevices(devices: Collection<BleDeviceData>) {
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.AddDevices.toString()
             it.putExtra(BluetoothControlService.ADD_DEVICES_KEY, devices.toTypedArray())
@@ -138,6 +138,29 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.ChangeVisualizerParam.toString()
             it.putExtra(BluetoothControlService.VISUALIZER_VALUE_KEY, Json.encodeToString(param))
+            context.startService(it)
+        }
+    }
+
+    override fun serviceSelected(address: String, service: String) {
+        Intent(context, BluetoothControlService::class.java).also {
+            it.action = BluetoothControlService.Actions.SelectedService.toString()
+            it.putExtra(BluetoothControlService.SELECTED_SERVICE_KEY, service)
+            context.startService(it)
+        }
+    }
+
+    override fun characteristicSelected(address: String, characteristic: String) {
+        Intent(context, BluetoothControlService::class.java).also {
+            it.action = BluetoothControlService.Actions.SelectedCharacteristic.toString()
+            it.putExtra(BluetoothControlService.SELECTED_CHARACTERISTIC_KEY, characteristic)
+            context.startService(it)
+        }
+    }
+
+    override fun sendRainbowMessage() {
+        Intent(context, BluetoothControlService::class.java).also {
+            it.action = BluetoothControlService.Actions.SendRainbowMessage.toString()
             context.startService(it)
         }
     }
