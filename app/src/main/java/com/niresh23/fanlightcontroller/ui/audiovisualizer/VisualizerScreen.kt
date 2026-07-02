@@ -14,13 +14,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,13 +41,16 @@ import com.niresh23.fanlightcontroller.ui.SimpleAlertDialog
 import com.niresh23.fanlightcontroller.ui.extensions.startAppSettingIntent
 import com.niresh23.fanlightcontroller.viewmodel.ControllerAction
 import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
+import kotlinx.coroutines.flow.StateFlow
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun VisualizerScreen(
-    viewState: VisualizerViewState,
+    viewStateFlow: StateFlow<VisualizerViewState>,
     onAction: (ControllerAction) -> Unit
 ) {
+    val viewState by viewStateFlow.collectAsState()
+
     val context = LocalActivity.current
 
     var showWarningDialog by remember { mutableStateOf(false) }

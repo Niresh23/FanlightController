@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(FlowPreview::class)
 class FanlightViewModel(
@@ -66,7 +67,7 @@ class FanlightViewModel(
             launch {
                 _frequencyChangeFlow.onEach { frequency ->
                     _visualizerViewStateFlow.value = _visualizerViewStateFlow.value.copy(frequency = frequency)
-                }.debounce(50).collectLatest { frequency ->
+                }.debounce(50.milliseconds).collectLatest { frequency ->
                     settingsLocalStorage.setFrequency(frequency)
                     serviceExecutor.changeVisualizerFrequency(frequency)
                 }
@@ -108,7 +109,7 @@ class FanlightViewModel(
                     _brightnessValueFlow.emit(action.value)
                 }
                 is ControllerAction.ChangeFrequency -> {
-                    settingsLocalStorage.setFrequency(action.value)
+                    _frequencyChangeFlow.emit(action.value)
                 }
                 is ControllerAction.ChangeColor -> {
                     _colorChangedFlow.emit(action.color)

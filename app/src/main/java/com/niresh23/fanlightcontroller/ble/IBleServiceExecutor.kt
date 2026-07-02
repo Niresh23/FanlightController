@@ -2,10 +2,10 @@ package com.niresh23.fanlightcontroller.ble
 
 import com.niresh23.fanlightcontroller.ui.connection.DeviceViewState
 import com.niresh23.fanlightcontroller.visualizer.AudioVisualizer
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 interface IBleServiceExecutor {
-    val devicesViewState: Flow<List<DeviceViewState>>
+    val devicesViewState: StateFlow<List<DeviceViewState>>
 
     fun onStart()
 

@@ -46,6 +46,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,13 +67,16 @@ import com.niresh23.fanlightcontroller.R
 import com.niresh23.fanlightcontroller.ui.extensions.getActivity
 import com.niresh23.fanlightcontroller.ui.extensions.startAppSettingIntent
 import com.niresh23.fanlightcontroller.viewmodel.ControllerAction
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun ConnectionScreen(
-    viewState: ConnectionViewState,
+    viewStateFlow: StateFlow<ConnectionViewState>,
     controllerAction: (ControllerAction) -> Unit,
     action: (ConnectionAction) -> Unit
 ) {
+    val viewState by viewStateFlow.collectAsState()
     var showScanAlertDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val requestScanPermission = rememberLauncherForActivityResult(
@@ -315,7 +319,7 @@ fun ConnectionScreen(
             text = {
                 Column {
                     Text(
-                        text = viewState.error,
+                        text = viewState.error ?: "",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -536,14 +540,14 @@ fun Battery(modifier: Modifier = Modifier, level: Int) {
 fun ConnectionScreenPreview() {
     Surface {
         ConnectionScreen(
-            viewState = ConnectionViewState(
+            viewStateFlow = MutableStateFlow(ConnectionViewState(
                 deviceList = listOf(
                     DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", true, status = DeviceConnectionStatus.CONNECTED, batteryLevel = 100, services = listOf("service1", "service2", "service3"), selectedService = "service1", characteristics = listOf("sdfsafd", "dfasdfasdf", "sdafasdfasdfsafsad")),
                     DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:18", false,  status = DeviceConnectionStatus.CONNECTING, batteryLevel = 35),
                     DeviceViewState("Exo Lightstick ver. 3", "EB:B6:A1:CA:B9:19", true,  batteryLevel = 5)
                 ),
                 scanning = true
-            ), {} , {}
+            )), {} , {}
         )
     }
 }

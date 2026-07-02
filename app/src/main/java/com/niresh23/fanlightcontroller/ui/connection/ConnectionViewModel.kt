@@ -6,7 +6,6 @@ import com.niresh23.fanlightcontroller.ble.IBleServiceExecutor
 import com.niresh23.fanlightcontroller.utils.Constants
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class ConnectionViewModel(
@@ -21,7 +20,7 @@ class ConnectionViewModel(
 
     init {
         viewModelScope.launch {
-            bleScanner.scanEventFlow.collectLatest { scanAction ->
+            bleScanner.scanEventFlow.collect { scanAction ->
                 when(scanAction) {
                     is BleScannerAdapter.ScanEvent.ScanResult -> {
                         serviceExecutor.addDevices(scanAction.scanResults)

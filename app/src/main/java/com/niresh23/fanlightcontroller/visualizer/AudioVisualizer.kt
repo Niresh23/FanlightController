@@ -3,6 +3,7 @@ package com.niresh23.fanlightcontroller.visualizer
 import android.Manifest
 import android.media.audiofx.Visualizer
 import androidx.annotation.RequiresPermission
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -239,6 +240,7 @@ class AudioVisualizer {
         private const val MAX_COLOR_VALUE = 255
     }
 
+    @Immutable
     @Serializable
     data class Param(
         val captureDivider: Float = 1f,

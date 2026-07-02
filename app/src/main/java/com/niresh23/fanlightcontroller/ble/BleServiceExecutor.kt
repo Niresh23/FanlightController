@@ -13,9 +13,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
@@ -23,10 +23,10 @@ class BleServiceExecutor(
     private val context: Context,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.Main
 ): IBleServiceExecutor {
-    override val devicesViewState: Flow<List<DeviceViewState>>
+    override val devicesViewState: StateFlow<List<DeviceViewState>>
         get() = _devicesViewState
 
-    private val _devicesViewState = MutableSharedFlow<List<DeviceViewState>>()
+    private val _devicesViewState = MutableStateFlow<List<DeviceViewState>>(emptyList())
     private val coroutineScope = CoroutineScope(coroutineDispatcher + SupervisorJob())
 
     private val connection = object : ServiceConnection {
@@ -36,8 +36,8 @@ class BleServiceExecutor(
             val bleService = binder.getService()
 
             coroutineScope.launch {
-                bleService.deviceViewStateFlow.collectLatest {
-                    _devicesViewState.emit(it)
+                bleService.deviceViewStateFlow.collect {
+                    _devicesViewState.value = it
                 }
             }
         }

@@ -91,27 +91,21 @@ fun HomeScreen(
         ) {
             NavHost(navController = navController, startDestination = startDestination) {
                 composable(route = NavRoute.Connection.name) {
-                    val viewState by connectionViewModel.viewState.collectAsState()
-
                     ConnectionScreen(
-                        viewState = viewState,
+                        viewStateFlow = connectionViewModel.viewState,
                         controllerAction = viewModel::onAction,
                         action = connectionViewModel::onAction
                     )
                 }
                 composable(route = NavRoute.Color.name) {
-                    val viewState by viewModel.colorViewStateFlow.collectAsState()
-
                     ColorScreen(
-                        viewState = viewState,
+                        viewStateFlow = viewModel.colorViewStateFlow,
                         onAction = viewModel::onAction
                     )
                 }
                 composable(route = NavRoute.Visualizer.name) {
-                    val viewState by viewModel.visualizerViewStateFlow.collectAsState()
-
                     VisualizerScreen(
-                        viewState = viewState,
+                        viewStateFlow = viewModel.visualizerViewStateFlow,
                         onAction = viewModel::onAction
                     )
                 }

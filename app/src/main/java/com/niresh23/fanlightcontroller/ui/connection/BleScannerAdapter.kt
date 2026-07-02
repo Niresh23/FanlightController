@@ -124,24 +124,25 @@ class BleScannerAdapter(
     ) : ScanCallback() {
         override fun onBatchScanResults(results: List<ScanResult>) {
             super.onBatchScanResults(results)
+            val newDevices = mutableListOf<BleDeviceData>()
             for (item in results) {
                 item.device?.let { device ->
-                    scanResults[device.address] = device
-                }
-            }
-
-            coroutineScope.launch {
-                flow.emit(ScanEvent.ScanResult(
-                    results.mapNotNull { result ->
-                        result.device?.let { device ->
+                    if (!scanResults.containsKey(device.address)) {
+                        scanResults[device.address] = device
+                        newDevices.add(
                             BleDeviceData(
                                 device.address,
                                 device.alias ?: device.name ?: "Unknown",
-                                result.isConnectable
+                                item.isConnectable
                             )
-                        }
+                        )
                     }
-                ))
+                }
+            }
+            if (newDevices.isNotEmpty()) {
+                coroutineScope.launch {
+                    flow.emit(ScanEvent.ScanResult(newDevices))
+                }
             }
         }
 
@@ -151,21 +152,22 @@ class BleScannerAdapter(
         ) {
             super.onScanResult(callbackType, result)
             result.device?.let { device ->
-                scanResults[device.address] = device
-            }
-            result.scanRecord?.advertiseFlags == 2
-            coroutineScope.launch {
-                flow.emit(
-                    ScanEvent.ScanResult(
-                        scanResults.map { it.value }.map { device ->
-
-                        BleDeviceData(
-                            device.address,
-                            device.alias ?: device.name ?: "Unknown",
-                            result.isConnectable
+                if (!scanResults.containsKey(device.address)) {
+                    scanResults[device.address] = device
+                    coroutineScope.launch {
+                        flow.emit(
+                            ScanEvent.ScanResult(
+                                listOf(
+                                    BleDeviceData(
+                                        device.address,
+                                        device.alias ?: device.name ?: "Unknown",
+                                        result.isConnectable
+                                    )
+                                )
+                            )
                         )
                     }
-                ))
+                }
             }
         }
 
