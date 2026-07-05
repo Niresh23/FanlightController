@@ -28,23 +28,28 @@ class BleServiceExecutor(
 
     private val _devicesViewState = MutableStateFlow<List<DeviceViewState>>(emptyList())
     private val coroutineScope = CoroutineScope(coroutineDispatcher + SupervisorJob())
+    private var bleService: BluetoothControlService? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-            // We've bound to LocalService, cast the IBinder and get LocalService instance.
             val binder = service as BluetoothControlService.ServiceBinder
-            val bleService = binder.getService()
+            bleService = binder.getService()
 
             coroutineScope.launch {
-                bleService.deviceViewStateFlow.collect {
+                bleService?.deviceViewStateFlow?.collect {
                     _devicesViewState.value = it
                 }
             }
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
+            bleService = null
             coroutineScope.cancel()
         }
+    }
+
+    private fun sendCommand(intent: Intent) {
+        bleService?.handleAction(intent) ?: context.startService(intent)
     }
 
     override fun onStart() {
@@ -84,7 +89,7 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.putExtra(BluetoothControlService.BLUETOOTH_DEVICE_KEY, address)
             it.action = BluetoothControlService.Actions.Disconnect.toString()
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -92,21 +97,21 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.putExtra(BluetoothControlService.COLOR_KEY, value)
             it.action = BluetoothControlService.Actions.ChangeColor.toString()
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
     override fun startAudioVisualizer() {
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.StartAudioVisualizer.toString()
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
     override fun stopAudioVisualizer() {
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.StopAudioVisualizer.toString()
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -114,7 +119,7 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.ChangeVisualizerFrequency.toString()
             it.putExtra(BluetoothControlService.FREQUENCY_VALUE_KEY, value)
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -122,7 +127,7 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.ChangeBrightness.toString()
             it.putExtra(BluetoothControlService.BRIGHTNESS_VALUE_KEY, value)
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -130,7 +135,7 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.AddDevices.toString()
             it.putExtra(BluetoothControlService.ADD_DEVICES_KEY, devices.toTypedArray())
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -138,7 +143,7 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.ChangeVisualizerParam.toString()
             it.putExtra(BluetoothControlService.VISUALIZER_VALUE_KEY, Json.encodeToString(param))
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -146,7 +151,7 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.SelectedService.toString()
             it.putExtra(BluetoothControlService.SELECTED_SERVICE_KEY, service)
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
@@ -154,14 +159,14 @@ class BleServiceExecutor(
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.SelectedCharacteristic.toString()
             it.putExtra(BluetoothControlService.SELECTED_CHARACTERISTIC_KEY, characteristic)
-            context.startService(it)
+            sendCommand(it)
         }
     }
 
     override fun sendRainbowMessage() {
         Intent(context, BluetoothControlService::class.java).also {
             it.action = BluetoothControlService.Actions.SendRainbowMessage.toString()
-            context.startService(it)
+            sendCommand(it)
         }
     }
 }

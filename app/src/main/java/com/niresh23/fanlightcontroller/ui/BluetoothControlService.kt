@@ -160,7 +160,12 @@ class BluetoothControlService: Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when(intent?.action) {
+        intent?.let { handleAction(it) }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    fun handleAction(intent: Intent) {
+        when(intent.action) {
             Actions.Connect.toString() -> {
                 val deviceAddress: String? = intent.extras?.getString(BLUETOOTH_DEVICE_KEY)
                 deviceAddress?.let {
@@ -270,8 +275,6 @@ class BluetoothControlService: Service() {
                 controllerMap.values.forEach { it.sendRainbowMessage() }
             }
         }
-
-        return super.onStartCommand(intent, flags, startId)
     }
 
     private fun onEvent(event: DeviceEvent) {

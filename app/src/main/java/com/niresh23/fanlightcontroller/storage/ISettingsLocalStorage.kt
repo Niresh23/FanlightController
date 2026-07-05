@@ -8,9 +8,9 @@ interface ISettingsLocalStorage {
     val frequencyFlow: Flow<Float>
     val visualizerParamsFlow: Flow<AudioVisualizer.Param>
 
-    suspend fun setAudioVisualizerParams(param: AudioVisualizer.Param)
+    fun setAudioVisualizerParams(param: AudioVisualizer.Param)
 
-    suspend fun setBrightness(value: Float)
+    fun setBrightness(value: Float)
 
-    suspend fun setFrequency(value: Float)
+    fun setFrequency(value: Float)
 }
